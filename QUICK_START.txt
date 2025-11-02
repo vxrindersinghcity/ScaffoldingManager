@@ -1,0 +1,58 @@
+╔══════════════════════════════════════════════════════════╗
+║                                                          ║
+║    🏗️  SCAFFOLDING BUSINESS MANAGER - QUICK START  🏗️    ║
+║                                                          ║
+╚══════════════════════════════════════════════════════════╝
+
+
+🚀 3 EASY STEPS TO GET STARTED:
+================================
+
+1️⃣  INSTALL PYTHON (One-time only)
+   📥 Download: https://www.python.org/downloads/
+   ⚠️  IMPORTANT: Check "Add Python to PATH" !!
+   
+2️⃣  DOUBLE-CLICK: START_MANAGER.bat
+   
+3️⃣  START USING THE APP! 🎉
+   • Browser opens automatically
+   • Keep the black window open
+   • Press Ctrl+C when done
+
+
+📋 WHAT YOU CAN DO:
+===================
+✅ Create & manage invoices
+✅ Generate PDF invoices  
+✅ Track customer inquiries
+✅ Manage vehicle fleet
+✅ Get MOT/Tax/Insurance reminders
+✅ Export everything to Excel
+
+
+💾 YOUR DATA:
+=============
+Saved automatically in:
+C:\Users\[YourName]\scaffolding_business.db
+
+⚠️  BACKUP THIS FILE REGULARLY! ⚠️
+
+
+🆘 PROBLEMS?
+============
+→ Read README.txt for detailed help
+→ Read BUILD_EXE_INSTRUCTIONS.txt to create standalone .exe
+
+
+💡 PRO TIPS:
+============
+• Right-click START_MANAGER.bat → Create Shortcut → Drag to Desktop
+• Export data to Excel weekly for backups
+• Check vehicle reminders every Monday morning
+
+
+════════════════════════════════════════════════════════════
+
+              THAT'S IT! YOU'RE READY TO GO! 🚀
+
+════════════════════════════════════════════════════════════
