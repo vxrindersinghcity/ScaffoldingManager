@@ -66,11 +66,12 @@ def init_database():
         CREATE TABLE IF NOT EXISTS vehicles (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             registration TEXT UNIQUE NOT NULL,
+            vehicleType TEXT DEFAULT 'car',
             ownerName TEXT NOT NULL,
             insuranceName TEXT NOT NULL,
             motDue TEXT NOT NULL,
             taxDue TEXT NOT NULL,
-            tachoDue TEXT NOT NULL,
+            tachoDue TEXT,
             insuranceDue TEXT NOT NULL,
             motActioned BOOLEAN DEFAULT 0,
             taxActioned BOOLEAN DEFAULT 0,
@@ -218,12 +219,12 @@ def create_vehicle():
     cursor = conn.cursor()
     try:
         cursor.execute('''
-            INSERT INTO vehicles (registration, ownerName, insuranceName,
+            INSERT INTO vehicles (registration, vehicleType, ownerName, insuranceName,
                                 motDue, taxDue, tachoDue, insuranceDue, motActioned, taxActioned, tachoActioned, insuranceActioned)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
-            data['registration'].upper(), data['ownerName'], data['insuranceName'],
-            data['motDue'], data['taxDue'], data['tachoDue'], data['insuranceDue'],
+            data['registration'].upper(), data.get('vehicleType', 'car'), data['ownerName'], data['insuranceName'],
+            data['motDue'], data['taxDue'], data.get('tachoDue'), data['insuranceDue'],
             data.get('motActioned', False), data.get('taxActioned', False), 
             data.get('tachoActioned', False), data.get('insuranceActioned', False)
         ))
@@ -242,12 +243,12 @@ def update_vehicle(vehicle_id):
     cursor = conn.cursor()
     cursor.execute('''
         UPDATE vehicles 
-        SET registration=?, ownerName=?, insuranceName=?,
+        SET registration=?, vehicleType=?, ownerName=?, insuranceName=?,
             motDue=?, taxDue=?, tachoDue=?, insuranceDue=?, motActioned=?, taxActioned=?, tachoActioned=?, insuranceActioned=?
         WHERE id=?
     ''', (
-        data['registration'].upper(), data['ownerName'], data['insuranceName'],
-        data['motDue'], data['taxDue'], data['tachoDue'], data['insuranceDue'],
+        data['registration'].upper(), data.get('vehicleType', 'car'), data['ownerName'], data['insuranceName'],
+        data['motDue'], data['taxDue'], data.get('tachoDue'), data['insuranceDue'],
         data.get('motActioned', False), data.get('taxActioned', False),
         data.get('tachoActioned', False), data.get('insuranceActioned', False), vehicle_id
     ))
