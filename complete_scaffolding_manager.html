@@ -569,69 +569,150 @@
                     const { jsPDF } = window.jspdf;
                     const doc = new jsPDF();
                     
-                    // Header
+                    // Company Header
+                    doc.setFontSize(20);
+                    doc.setTextColor(102, 126, 234);
+                    doc.setFont(undefined, 'bold');
+                    doc.text('Khalsa Scaffolding LTD', 20, 15);
+                    
+                    doc.setFontSize(9);
+                    doc.setTextColor(0, 0, 0);
+                    doc.setFont(undefined, 'normal');
+                    doc.text('66 Raynton Drive', 20, 22);
+                    doc.text('Hayes UB4 8BE', 20, 27);
+                    doc.text('Phone: 07741252013', 20, 32);
+                    
+                    // INVOICE Title (right side)
                     doc.setFontSize(24);
                     doc.setTextColor(102, 126, 234);
-                    doc.text('INVOICE', 20, 20);
+                    doc.setFont(undefined, 'bold');
+                    doc.text('INVOICE', 160, 15);
                     
-                    // Invoice details
+                    // Invoice details (right side)
                     doc.setFontSize(10);
                     doc.setTextColor(0, 0, 0);
-                    doc.text(`Invoice Number: ${invoice.invoiceNumber}`, 20, 35);
-                    doc.text(`Date: ${invoice.date}`, 20, 42);
+                    doc.setFont(undefined, 'bold');
+                    doc.text('INVOICE #:', 140, 25);
+                    doc.text('DATE:', 140, 30);
+                    doc.setFont(undefined, 'normal');
+                    doc.text(invoice.invoiceNumber, 165, 25);
+                    doc.text(invoice.date, 165, 30);
                     
-                    // Client details
-                    doc.setFontSize(12);
-                    doc.text('Bill To:', 20, 55);
+                    // Terms (right side)
+                    doc.setFontSize(9);
+                    doc.text('TERMS: Due Upon Receipt', 140, 35);
+                    
+                    // Client details (BILL TO)
+                    doc.setFontSize(11);
+                    doc.setFont(undefined, 'bold');
+                    doc.text('BILL TO:', 20, 45);
                     doc.setFontSize(10);
-                    doc.text(invoice.clientName, 20, 62);
-                    if (invoice.clientAddress) doc.text(invoice.clientAddress, 20, 69);
-                    if (invoice.clientPhone) doc.text(invoice.clientPhone, 20, 76);
+                    doc.setFont(undefined, 'normal');
+                    doc.text(invoice.clientName, 20, 52);
+                    if (invoice.clientAddress) doc.text(invoice.clientAddress, 20, 57);
+                    if (invoice.clientPhone) doc.text(invoice.clientPhone, 20, 62);
                     
                     // Items table
                     const items = typeof invoice.items === 'string' ? JSON.parse(invoice.items) : invoice.items;
-                    let yPos = 95;
+                    let yPos = 75;
                     
+                    // Table Header
+                    doc.setFillColor(240, 240, 240);
+                    doc.rect(20, yPos - 5, 170, 8, 'F');
                     doc.setFontSize(10);
-                    doc.text('Description', 20, yPos);
-                    doc.text('Qty', 120, yPos);
-                    doc.text('Rate', 145, yPos);
-                    doc.text('Amount', 170, yPos);
+                    doc.setFont(undefined, 'bold');
+                    doc.text('DESCRIPTION', 22, yPos);
+                    doc.text('QTY', 120, yPos);
+                    doc.text('UNIT PRICE', 140, yPos);
+                    doc.text('AMOUNT', 170, yPos);
                     
-                    yPos += 7;
+                    yPos += 3;
+                    doc.setLineWidth(0.5);
                     doc.line(20, yPos, 190, yPos);
                     
-                    yPos += 5;
+                    yPos += 7;
+                    doc.setFont(undefined, 'normal');
                     items.forEach(item => {
-                        doc.text(item.description, 20, yPos);
-                        doc.text(String(item.quantity), 120, yPos);
-                        doc.text(`£${item.rate.toFixed(2)}`, 145, yPos);
-                        doc.text(`£${(item.quantity * item.rate).toFixed(2)}`, 170, yPos);
+                        doc.text(item.description.substring(0, 40), 22, yPos);
+                        doc.text(String(item.quantity), 125, yPos, { align: 'right' });
+                        doc.text(`£${item.rate.toFixed(2)}`, 155, yPos, { align: 'right' });
+                        doc.text(`£${(item.quantity * item.rate).toFixed(2)}`, 185, yPos, { align: 'right' });
                         yPos += 7;
                     });
                     
                     // Totals
-                    yPos += 10;
+                    yPos += 5;
+                    doc.setLineWidth(0.5);
                     doc.line(20, yPos, 190, yPos);
+                    yPos += 8;
+                    
+                    doc.setFont(undefined, 'normal');
+                    doc.text('SUBTOTAL:', 140, yPos);
+                    doc.text(`£${invoice.subtotal?.toFixed(2) || '0.00'}`, 185, yPos, { align: 'right' });
                     yPos += 7;
-                    doc.text('Subtotal:', 145, yPos);
-                    doc.text(`£${invoice.subtotal?.toFixed(2) || '0.00'}`, 170, yPos);
+                    
+                    doc.text('TAX RATE:', 140, yPos);
+                    doc.text('20%', 185, yPos, { align: 'right' });
                     yPos += 7;
-                    doc.text('VAT (20%):', 145, yPos);
-                    doc.text(`£${invoice.vat?.toFixed(2) || '0.00'}`, 170, yPos);
+                    
+                    doc.text('VAT:', 140, yPos);
+                    doc.text(`£${invoice.vat?.toFixed(2) || '0.00'}`, 185, yPos, { align: 'right' });
                     yPos += 7;
+                    
+                    doc.setLineWidth(1);
+                    doc.line(135, yPos, 190, yPos);
+                    yPos += 8;
+                    
                     doc.setFontSize(12);
                     doc.setFont(undefined, 'bold');
-                    doc.text('Total:', 145, yPos);
-                    doc.text(`£${invoice.total?.toFixed(2) || '0.00'}`, 170, yPos);
+                    doc.text('TOTAL:', 140, yPos);
+                    doc.text(`£${invoice.total?.toFixed(2) || '0.00'}`, 185, yPos, { align: 'right' });
+                    
+                    // Thank you message
+                    yPos += 15;
+                    doc.setFontSize(11);
+                    doc.setFont(undefined, 'bold');
+                    doc.setTextColor(102, 126, 234);
+                    doc.text('Thank you for your business!', 105, yPos, { align: 'center' });
+                    
+                    // Bank details
+                    yPos += 10;
+                    doc.setFontSize(9);
+                    doc.setTextColor(0, 0, 0);
+                    doc.setFont(undefined, 'bold');
+                    doc.text('Bank Details:', 20, yPos);
+                    doc.setFont(undefined, 'normal');
+                    yPos += 5;
+                    doc.text('Bank name: Khalsa Scaffolding LTD', 20, yPos);
+                    yPos += 5;
+                    doc.text('Account number: 33189759', 20, yPos);
+                    yPos += 5;
+                    doc.text('Sort code: 20-42-76', 20, yPos);
+                    
+                    // Company registration
+                    yPos += 8;
+                    doc.setFontSize(8);
+                    doc.setTextColor(100, 100, 100);
+                    doc.text('Company number: 13490441 | VAT: 437471907', 105, yPos, { align: 'center' });
+                    
+                    // Contact info
+                    yPos += 8;
+                    doc.setFontSize(9);
+                    doc.setTextColor(0, 0, 0);
+                    doc.text('If you have any questions about this invoice, please contact:', 105, yPos, { align: 'center' });
+                    yPos += 5;
+                    doc.setFont(undefined, 'bold');
+                    doc.text('Jagtar Singh Brar, 07741252013', 105, yPos, { align: 'center' });
                     
                     // Notes
                     if (invoice.notes) {
-                        yPos += 15;
-                        doc.setFontSize(10);
-                        doc.setFont(undefined, 'normal');
+                        yPos += 10;
+                        doc.setFontSize(9);
+                        doc.setFont(undefined, 'bold');
                         doc.text('Notes:', 20, yPos);
-                        doc.text(invoice.notes, 20, yPos + 7, { maxWidth: 170 });
+                        doc.setFont(undefined, 'normal');
+                        const splitNotes = doc.splitTextToSize(invoice.notes, 170);
+                        doc.text(splitNotes, 20, yPos + 5);
                     }
                     
                     doc.save(`Invoice_${invoice.invoiceNumber}.pdf`);
