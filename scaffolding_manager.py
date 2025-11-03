@@ -66,15 +66,15 @@ def init_database():
         CREATE TABLE IF NOT EXISTS vehicles (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             registration TEXT UNIQUE NOT NULL,
-            make TEXT NOT NULL,
-            model TEXT NOT NULL,
-            colour TEXT,
-            fuelType TEXT,
+            ownerName TEXT NOT NULL,
+            insuranceName TEXT NOT NULL,
             motDue TEXT NOT NULL,
             taxDue TEXT NOT NULL,
+            tachoDue TEXT NOT NULL,
             insuranceDue TEXT NOT NULL,
             motActioned BOOLEAN DEFAULT 0,
             taxActioned BOOLEAN DEFAULT 0,
+            tachoActioned BOOLEAN DEFAULT 0,
             insuranceActioned BOOLEAN DEFAULT 0,
             createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
@@ -218,14 +218,14 @@ def create_vehicle():
     cursor = conn.cursor()
     try:
         cursor.execute('''
-            INSERT INTO vehicles (registration, make, model, colour, fuelType,
-                                motDue, taxDue, insuranceDue, motActioned, taxActioned, insuranceActioned)
+            INSERT INTO vehicles (registration, ownerName, insuranceName,
+                                motDue, taxDue, tachoDue, insuranceDue, motActioned, taxActioned, tachoActioned, insuranceActioned)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
-            data['registration'].upper(), data['make'], data['model'], data.get('colour'),
-            data.get('fuelType'), data['motDue'], data['taxDue'], data['insuranceDue'],
+            data['registration'].upper(), data['ownerName'], data['insuranceName'],
+            data['motDue'], data['taxDue'], data['tachoDue'], data['insuranceDue'],
             data.get('motActioned', False), data.get('taxActioned', False), 
-            data.get('insuranceActioned', False)
+            data.get('tachoActioned', False), data.get('insuranceActioned', False)
         ))
         conn.commit()
         vehicle_id = cursor.lastrowid
@@ -242,14 +242,14 @@ def update_vehicle(vehicle_id):
     cursor = conn.cursor()
     cursor.execute('''
         UPDATE vehicles 
-        SET registration=?, make=?, model=?, colour=?, fuelType=?,
-            motDue=?, taxDue=?, insuranceDue=?, motActioned=?, taxActioned=?, insuranceActioned=?
+        SET registration=?, ownerName=?, insuranceName=?,
+            motDue=?, taxDue=?, tachoDue=?, insuranceDue=?, motActioned=?, taxActioned=?, tachoActioned=?, insuranceActioned=?
         WHERE id=?
     ''', (
-        data['registration'].upper(), data['make'], data['model'], data.get('colour'),
-        data.get('fuelType'), data['motDue'], data['taxDue'], data['insuranceDue'],
+        data['registration'].upper(), data['ownerName'], data['insuranceName'],
+        data['motDue'], data['taxDue'], data['tachoDue'], data['insuranceDue'],
         data.get('motActioned', False), data.get('taxActioned', False),
-        data.get('insuranceActioned', False), vehicle_id
+        data.get('tachoActioned', False), data.get('insuranceActioned', False), vehicle_id
     ))
     conn.commit()
     conn.close()
