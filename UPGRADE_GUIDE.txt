@@ -1,0 +1,266 @@
+╔══════════════════════════════════════════════════════════╗
+║                                                          ║
+║      UPGRADE GUIDE - Version 1.0 → 1.1                 ║
+║                                                          ║
+╚══════════════════════════════════════════════════════════╝
+
+
+🎯 WHAT'S NEW IN VERSION 1.1
+=============================
+
+✨ MOT Field Now Optional
+  • No longer required when adding vehicles
+  • Perfect for new vehicles or MOT-exempt situations
+  • Just leave blank if not applicable
+
+✨ Truck Maintenance Tracking
+  • New 8-week maintenance cycle tracking
+  • Automatic reminders 7 days before due
+  • Perfect for HGV servicing schedules
+  • Separate from other vehicle checks
+
+✨ Enhanced Vehicle Management
+  • Better display for truck-specific fields
+  • Improved reminder system
+  • All existing data preserved
+
+
+⚠️ IMPORTANT: BACKUP FIRST!
+============================
+
+Before upgrading, BACKUP your database:
+
+1. Navigate to: C:\Users\[YourName]\
+2. Find: scaffolding_business.db
+3. Copy it to a safe location (USB drive, cloud, etc.)
+4. Name it something like: scaffolding_business_BACKUP_2024.db
+
+
+🚀 UPGRADE STEPS (EXISTING USERS)
+==================================
+
+STEP 1: Backup Your Database
+-----------------------------
+See above - THIS IS CRITICAL!
+
+
+STEP 2: Stop the Application
+-----------------------------
+• Close your browser tab
+• Press Ctrl+C in the terminal window
+• Wait for it to fully shut down
+
+
+STEP 3: Replace Files
+----------------------
+• Extract the new version files
+• Replace these files:
+  ✓ scaffolding_manager.py
+  ✓ complete_scaffolding_manager.html
+  ✓ README.txt (new features documented)
+  ✓ QUICK_START.txt (updated)
+
+• New files you'll receive:
+  ✓ migrate_database.py (IMPORTANT - updates your database)
+  ✓ UPGRADE_GUIDE.txt (this file)
+
+
+STEP 4: Run Database Migration
+-------------------------------
+This step is REQUIRED to add the new features:
+
+1. Double-click: migrate_database.py
+   (Or run: python migrate_database.py)
+
+2. You should see:
+   ✅ Adding 'maintenanceDue' column...
+   ✅ Adding 'maintenanceActioned' column...
+   ✅ Migration completed successfully!
+
+3. If you see "already up to date", that's fine too!
+
+
+STEP 5: Start the Application
+------------------------------
+• Double-click START_MANAGER.bat as usual
+• Application opens in your browser
+• All your data is still there!
+
+
+STEP 6: Verify Everything Works
+--------------------------------
+✓ Check your invoices are all there
+✓ Check your inquiries are all there
+✓ Check your vehicles are all there
+✓ Try adding a new truck with maintenance date
+✓ Check reminders are showing correctly
+
+
+🔍 WHAT CHANGED IN YOUR DATA
+=============================
+
+Your Database:
+--------------
+✅ All existing data is PRESERVED
+✅ Two new columns added to vehicles table:
+   • maintenanceDue (for truck maintenance dates)
+   • maintenanceActioned (to mark maintenance complete)
+✅ MOT column changed from required to optional
+✅ Nothing is deleted or modified
+
+
+Your Vehicles:
+--------------
+✅ All existing vehicles remain exactly the same
+✅ MOT dates are preserved
+✅ You can now leave MOT blank for new vehicles
+✅ Trucks can now have maintenance dates added
+
+
+💡 USING THE NEW FEATURES
+==========================
+
+Making MOT Optional:
+--------------------
+• When adding/editing vehicles, MOT field is no longer required
+• Leave it blank if:
+  - Vehicle is brand new
+  - Vehicle is MOT-exempt
+  - You track MOT elsewhere
+• You can still fill it in if you want reminders
+
+
+Adding Truck Maintenance:
+--------------------------
+1. Add or Edit a truck/HGV
+2. You'll see a new field:
+   🔧 Maintenance Due (Trucks Only - 8 Week Cycle)
+3. Enter the date (8 weeks from last service)
+4. You'll get a reminder 7 days before
+5. Mark it complete after servicing
+6. Update with next maintenance date
+
+
+Viewing Maintenance Reminders:
+-------------------------------
+• Dashboard shows all reminders including maintenance
+• Maintenance reminders appear 7 days before due
+• Color-coded: Red (overdue), Orange (urgent), Yellow (upcoming)
+• Click "Mark Complete" after servicing
+
+
+📊 EXCEL EXPORTS UPDATED
+=========================
+
+Vehicle exports now include:
+• Maintenance Due (for trucks with maintenance set)
+• MOT shows "N/A" if not set (instead of blank)
+
+
+🆘 TROUBLESHOOTING
+==================
+
+❌ "Column already exists" error
+   → This is actually GOOD! It means you already ran the migration
+   → Just start the app normally
+
+❌ Migration script won't run
+   → Make sure Python is installed
+   → Try: python migrate_database.py
+   → Check you're in the right folder
+
+❌ Can't see maintenance field
+   → Make sure you ran migrate_database.py first
+   → Restart the application
+   → Select "Truck/HGV" as vehicle type
+
+❌ Existing vehicles missing
+   → Check your database backup
+   → The migration doesn't delete data
+   → Make sure you're using the same database file
+
+❌ MOT field still required
+   → Clear your browser cache
+   → Refresh the page (Ctrl+F5)
+   → Make sure you replaced complete_scaffolding_manager.html
+
+❌ Application won't start
+   → Check Python is still installed
+   → Try: pip install Flask Flask-CORS
+   → Make sure port 5000 is available
+
+
+🎓 MIGRATION DETAILS (FOR TECH USERS)
+======================================
+
+The migration script does the following:
+
+1. Connects to: C:\Users\[You]\scaffolding_business.db
+2. Checks if new columns exist
+3. Adds if missing:
+   - maintenanceDue TEXT (allows NULL)
+   - maintenanceActioned BOOLEAN DEFAULT 0
+4. Commits changes
+5. Existing data is never modified
+
+SQL executed:
+-------------
+ALTER TABLE vehicles ADD COLUMN maintenanceDue TEXT;
+ALTER TABLE vehicles ADD COLUMN maintenanceActioned BOOLEAN DEFAULT 0;
+
+
+📝 VERSION HISTORY
+==================
+
+Version 1.1 (Current):
+---------------------
+• MOT field is now optional
+• 8-week maintenance tracking for trucks
+• Enhanced vehicle display
+• 7-day advance maintenance reminders
+
+Version 1.0 (Original):
+-----------------------
+• Invoice management
+• Inquiry tracking
+• Vehicle fleet management
+• MOT/Tax/Insurance tracking
+• Excel exports
+• PDF generation
+
+
+✅ UPGRADE COMPLETE CHECKLIST
+==============================
+
+Before you start using v1.1, make sure:
+
+□ Backed up database file
+□ Stopped the old version
+□ Replaced application files
+□ Ran migrate_database.py successfully
+□ Started the new version
+□ Verified all existing data is present
+□ Tested adding a vehicle (MOT optional works)
+□ Tested adding a truck with maintenance date
+□ Checked reminders on dashboard
+
+
+🎉 ENJOY THE NEW FEATURES!
+===========================
+
+You're now running version 1.1 with:
+• More flexibility (optional MOT)
+• Better truck management (8-week maintenance)
+• All your existing data safe and sound
+
+Happy managing! 🏗️
+
+
+════════════════════════════════════════════════════════════
+
+Need help? Check:
+1. README.txt - Complete documentation
+2. QUICK_START.txt - Basic usage
+3. TROUBLESHOOTING section above
+
+════════════════════════════════════════════════════════════

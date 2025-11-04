@@ -1,0 +1,297 @@
+╔══════════════════════════════════════════════════════════╗
+║                                                          ║
+║   SCAFFOLDING BUSINESS MANAGER v1.1 - CHANGES SUMMARY  ║
+║                                                          ║
+╚══════════════════════════════════════════════════════════╝
+
+
+📋 OVERVIEW
+===========
+
+Version 1.1 includes the requested features:
+✅ All vehicle data is preserved
+✅ MOT field is now OPTIONAL (not required)
+✅ NEW: 8-week maintenance cycle tracking for trucks
+✅ NEW: 7-day advance reminder for truck maintenance
+✅ Enhanced vehicle display and forms
+
+
+🔧 TECHNICAL CHANGES
+====================
+
+Database Schema Changes:
+------------------------
+• Added: maintenanceDue (TEXT, nullable) - stores maintenance due date
+• Added: maintenanceActioned (BOOLEAN, default 0) - tracks if maintenance completed
+• Modified: motDue - now nullable (was required before)
+
+Backend Changes (scaffolding_manager.py):
+------------------------------------------
+1. Updated database init_database() function:
+   • Added maintenanceDue column
+   • Added maintenanceActioned column
+   • Changed motDue from NOT NULL to nullable
+
+2. Updated create_vehicle API endpoint:
+   • Accepts maintenanceDue parameter
+   • Accepts maintenanceActioned parameter
+   • Handles null motDue values
+
+3. Updated update_vehicle API endpoint:
+   • Processes maintenanceDue parameter
+   • Processes maintenanceActioned parameter
+   • Handles null motDue values
+
+Frontend Changes (complete_scaffolding_manager.html):
+-----------------------------------------------------
+1. Vehicle Form:
+   • MOT field - removed 'required' attribute
+   • Added helper text: "Optional - Leave blank if not applicable"
+   • Added new maintenance field (trucks only)
+   • Maintenance field shows/hides based on vehicle type
+   • Added helper text explaining 8-week cycle and 7-day reminder
+
+2. Form Submission (saveVehicle function):
+   • Updated to handle maintenanceDue
+   • Updated to handle maintenanceActioned
+   • MOT value now sent as null if empty
+
+3. Reminder System (getReminders function):
+   • Added maintenance reminder logic
+   • Reminds 7 days before maintenance due
+   • Only for trucks (vehicleType === 'truck')
+   • Honors maintenanceActioned flag
+
+4. Vehicle Display:
+   • Updated grid layout (5 columns for trucks, 3 for cars)
+   • Added maintenance due card (yellow theme, wrench icon)
+   • Shows maintenance date when set
+   • MOT shows "N/A" when not set
+
+5. Excel Export:
+   • Added maintenance due column for trucks
+   • MOT shows "N/A" when empty
+
+6. Vehicle Type Selector:
+   • Updated onChange handler to show/hide maintenance field
+   • Maintenance field appears only for trucks
+   • No required validation on maintenance field
+
+
+🆕 NEW FILES
+============
+
+1. migrate_database.py
+   • Python script to update existing databases
+   • Adds new columns to vehicles table
+   • Preserves all existing data
+   • Safe to run multiple times
+
+2. UPGRADE_GUIDE.txt
+   • Step-by-step upgrade instructions
+   • Troubleshooting guide
+   • Feature explanation
+
+3. README.txt (Updated)
+   • Added v1.1 feature documentation
+   • Added upgrade instructions
+   • Added truck maintenance usage guide
+
+
+📝 USER-FACING CHANGES
+======================
+
+For ALL Vehicles:
+-----------------
+• MOT field is now optional when adding/editing
+• Can leave MOT blank if not applicable
+• MOT shows as "N/A" in displays and exports when empty
+
+For Trucks/HGVs:
+----------------
+• New field: "🔧 Maintenance Due (Trucks Only - 8 Week Cycle)"
+• Purpose: Track regular 8-week maintenance schedules
+• Reminder: Appears 7 days before maintenance due
+• Can be marked as completed
+• Exported to Excel with other vehicle data
+
+Dashboard Reminders:
+--------------------
+• New reminder type: "Maintenance"
+• Shows 7 days before maintenance due
+• Color-coded like other reminders:
+  - Red: Overdue
+  - Orange: Urgent (≤7 days)
+  - Yellow: Upcoming (>7 days)
+
+
+🔄 DATA MIGRATION
+=================
+
+Automatic Migration Process:
+---------------------------
+1. User runs migrate_database.py
+2. Script connects to existing database
+3. Checks if columns exist
+4. Adds maintenanceDue if missing
+5. Adds maintenanceActioned if missing
+6. Commits changes
+7. Preserves all existing data
+
+What Happens to Existing Data:
+------------------------------
+• All invoices: Unchanged
+• All inquiries: Unchanged
+• All vehicles: Unchanged
+• Existing MOT dates: Preserved
+• New vehicles: Can have MOT blank
+• Truck maintenance: Initially null (user can add)
+
+
+⚠️ BACKWARD COMPATIBILITY
+=========================
+
+Database:
+---------
+• New database structure is forward-compatible
+• Old app version cannot read new columns (they're ignored)
+• New app version works with old database after migration
+
+Files:
+------
+• Must replace BOTH .py and .html files
+• Using old HTML with new backend: Maintenance won't show
+• Using new HTML with old backend: 400 errors on save
+• Solution: Replace both files together
+
+
+✅ TESTING CHECKLIST
+====================
+
+Feature Testing:
+----------------
+□ Add car/van - MOT optional works
+□ Add car/van - MOT filled works
+□ Add truck - maintenance field appears
+□ Add truck - can save with maintenance date
+□ Add truck - can save without maintenance date
+□ Edit vehicle - all fields editable
+□ Delete vehicle - works as before
+□ Reminders - maintenance shows at 7 days
+□ Mark complete - maintenance marked as done
+□ Export Excel - includes maintenance for trucks
+□ MOT shows N/A when blank
+
+Data Integrity:
+---------------
+□ Existing vehicles load correctly
+□ Existing invoices load correctly
+□ Existing inquiries load correctly
+□ Search/filter still works
+□ All actions preserve data
+
+
+🎯 USAGE SCENARIOS
+==================
+
+Scenario 1: New Car (No MOT Yet)
+---------------------------------
+1. Click "Add Vehicle"
+2. Select "Car/Van"
+3. Fill registration, owner, insurance details
+4. Fill tax due, insurance due
+5. Leave MOT blank ✓
+6. Save successfully
+
+Scenario 2: Add Truck with Maintenance
+---------------------------------------
+1. Click "Add Vehicle"
+2. Select "Truck/HGV"
+3. Fill all required fields
+4. Fill tacho due (optional)
+5. Fill maintenance due (8 weeks ahead) ✓
+6. Save successfully
+7. Reminder appears 7 days before ✓
+
+Scenario 3: Update Truck After Service
+---------------------------------------
+1. View truck with overdue maintenance
+2. Complete the maintenance
+3. Click "Mark Complete" on reminder
+4. Edit vehicle
+5. Update maintenance due to +8 weeks
+6. Save
+7. New reminder scheduled ✓
+
+
+📊 REMINDER THRESHOLDS
+======================
+
+Field           | Days Before | For Vehicle Types
+----------------|-------------|-------------------
+MOT             | 30 days     | All (if set)
+Tax             | 14 days     | All
+Tacho           | 30 days     | Trucks only
+Maintenance     | 7 days      | Trucks only ✓ NEW
+Insurance       | 60 days     | All
+
+
+🔐 DATA PRESERVATION GUARANTEE
+==============================
+
+What Will NEVER Be Lost:
+-------------------------
+✅ Invoice data
+✅ Inquiry data
+✅ Vehicle registrations
+✅ Vehicle owners
+✅ Existing MOT dates
+✅ Tax dates
+✅ Insurance dates
+✅ Tacho dates
+✅ Any actioned flags
+
+What Gets Added:
+----------------
+✅ maintenanceDue field (initially null)
+✅ maintenanceActioned field (initially false)
+
+
+📦 DEPLOYMENT PACKAGE
+=====================
+
+Files to Include:
+-----------------
+1. scaffolding_manager.py (updated)
+2. complete_scaffolding_manager.html (updated)
+3. migrate_database.py (new)
+4. README.txt (updated)
+5. UPGRADE_GUIDE.txt (new)
+6. QUICK_START.txt (existing)
+7. START_MANAGER.bat (existing)
+8. BUILD_EXE_INSTRUCTIONS.txt (existing)
+9. requirements.txt (existing)
+
+
+🎉 SUMMARY
+==========
+
+✅ All requested features implemented
+✅ Vehicle data preservation guaranteed
+✅ MOT field is now optional
+✅ 8-week truck maintenance cycle tracking
+✅ 7-day advance maintenance reminders
+✅ Complete documentation provided
+✅ Migration script for existing users
+✅ Backward-compatible database design
+
+Users can now:
+• Leave MOT blank when not needed
+• Track truck maintenance on 8-week cycles
+• Get timely reminders for maintenance
+• Keep all existing data intact
+
+
+════════════════════════════════════════════════════════════
+           All Features Successfully Implemented!
+════════════════════════════════════════════════════════════

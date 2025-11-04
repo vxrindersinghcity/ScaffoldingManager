@@ -452,14 +452,16 @@
                     vehicleType: vehicleType,
                     ownerName: formData.get('ownerName'),
                     insuranceName: formData.get('insuranceName'),
-                    motDue: formData.get('motDue'),
+                    motDue: formData.get('motDue') || null,
                     taxDue: formData.get('taxDue'),
                     tachoDue: vehicleType === 'truck' ? formData.get('tachoDue') : null,
+                    maintenanceDue: vehicleType === 'truck' ? formData.get('maintenanceDue') : null,
                     insuranceDue: formData.get('insuranceDue'),
                     motActioned: editingItem?.motActioned || false,
                     taxActioned: editingItem?.taxActioned || false,
                     tachoActioned: editingItem?.tachoActioned || false,
-                    insuranceActioned: editingItem?.insuranceActioned || false
+                    insuranceActioned: editingItem?.insuranceActioned || false,
+                    maintenanceActioned: editingItem?.maintenanceActioned || false
                 };
 
                 try {
@@ -545,11 +547,16 @@
                                 'Type': veh.vehicleType === 'truck' ? 'Truck/HGV' : 'Car/Van',
                                 'Owner Name': veh.ownerName,
                                 'Insurance Company': veh.insuranceName || '',
-                                'MOT Due': veh.motDue,
+                                'MOT Due': veh.motDue || 'N/A',
                                 'Tax Due': veh.taxDue
                             };
-                            if (veh.vehicleType === 'truck' && veh.tachoDue) {
-                                row['Tacho Due'] = veh.tachoDue;
+                            if (veh.vehicleType === 'truck') {
+                                if (veh.tachoDue) {
+                                    row['Tacho Due'] = veh.tachoDue;
+                                }
+                                if (veh.maintenanceDue) {
+                                    row['Maintenance Due'] = veh.maintenanceDue;
+                                }
                             }
                             row['Insurance Due'] = veh.insuranceDue;
                             return row;
@@ -753,6 +760,7 @@
                                 actionField: type === 'MOT' ? 'motActioned' : 
                                            type === 'Tax' ? 'taxActioned' : 
                                            type === 'Tacho' ? 'tachoActioned' :
+                                           type === 'Maintenance' ? 'maintenanceActioned' :
                                            'insuranceActioned'
                             });
                         }
@@ -760,9 +768,10 @@
 
                     checkDate(veh.motDue, 'MOT', 30, veh.motActioned);
                     checkDate(veh.taxDue, 'Tax', 14, veh.taxActioned);
-                    // Only check tacho for trucks
+                    // Only check tacho and maintenance for trucks
                     if (veh.vehicleType === 'truck') {
                         checkDate(veh.tachoDue, 'Tacho', 30, veh.tachoActioned);
+                        checkDate(veh.maintenanceDue, 'Maintenance', 7, veh.maintenanceActioned);
                     }
                     checkDate(veh.insuranceDue, 'Insurance', 60, veh.insuranceActioned);
                 });
@@ -1295,10 +1304,10 @@
                                                             </button>
                                                         </div>
                                                     </div>
-                                                    <div className={`grid grid-cols-1 gap-3 ${veh.vehicleType === 'truck' ? 'md:grid-cols-4' : 'md:grid-cols-3'}`}>
+                                                    <div className={`grid grid-cols-1 gap-3 ${veh.vehicleType === 'truck' ? 'md:grid-cols-5' : 'md:grid-cols-3'}`}>
                                                         <div className="p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg border-l-4 border-blue-500">
                                                             <p className="text-xs text-blue-700 font-semibold uppercase tracking-wide mb-1">MOT Due</p>
-                                                            <p className="font-bold text-lg text-blue-900">{veh.motDue}</p>
+                                                            <p className="font-bold text-lg text-blue-900">{veh.motDue || 'N/A'}</p>
                                                         </div>
                                                         <div className="p-4 bg-gradient-to-br from-green-50 to-green-100 rounded-lg border-l-4 border-green-500">
                                                             <p className="text-xs text-green-700 font-semibold uppercase tracking-wide mb-1">Tax Due</p>
@@ -1308,6 +1317,12 @@
                                                             <div className="p-4 bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg border-l-4 border-orange-500">
                                                                 <p className="text-xs text-orange-700 font-semibold uppercase tracking-wide mb-1">Tacho Due</p>
                                                                 <p className="font-bold text-lg text-orange-900">{veh.tachoDue}</p>
+                                                            </div>
+                                                        )}
+                                                        {veh.vehicleType === 'truck' && veh.maintenanceDue && (
+                                                            <div className="p-4 bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-lg border-l-4 border-yellow-500">
+                                                                <p className="text-xs text-yellow-700 font-semibold uppercase tracking-wide mb-1">🔧 Maintenance Due</p>
+                                                                <p className="font-bold text-lg text-yellow-900">{veh.maintenanceDue}</p>
                                                             </div>
                                                         )}
                                                         <div className="p-4 bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg border-l-4 border-purple-500">
@@ -1646,14 +1661,19 @@
                                                         onChange={(e) => {
                                                             const tachoContainer = document.getElementById('tachoFieldContainer');
                                                             const tachoField = document.querySelector('input[name="tachoDue"]');
-                                                            if (tachoContainer && tachoField) {
-                                                                if (e.target.value === 'truck') {
-                                                                    tachoContainer.style.display = 'block';
-                                                                    tachoField.required = true;
-                                                                } else {
-                                                                    tachoContainer.style.display = 'none';
-                                                                    tachoField.required = false;
-                                                                }
+                                                            const maintenanceContainer = document.getElementById('maintenanceFieldContainer');
+                                                            const maintenanceField = document.querySelector('input[name="maintenanceDue"]');
+                                                            
+                                                            if (e.target.value === 'truck') {
+                                                                if (tachoContainer) tachoContainer.style.display = 'block';
+                                                                if (tachoField) tachoField.required = false;
+                                                                if (maintenanceContainer) maintenanceContainer.style.display = 'block';
+                                                                if (maintenanceField) maintenanceField.required = false;
+                                                            } else {
+                                                                if (tachoContainer) tachoContainer.style.display = 'none';
+                                                                if (tachoField) tachoField.required = false;
+                                                                if (maintenanceContainer) maintenanceContainer.style.display = 'none';
+                                                                if (maintenanceField) maintenanceField.required = false;
                                                             }
                                                         }}
                                                         className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
@@ -1686,14 +1706,14 @@
                                                     />
                                                 </div>
                                                 <div>
-                                                    <label className="block text-sm font-bold text-gray-700 mb-2">MOT Due *</label>
+                                                    <label className="block text-sm font-bold text-gray-700 mb-2">MOT Due</label>
                                                     <input
                                                         type="date"
                                                         name="motDue"
                                                         defaultValue={editingItem?.motDue}
                                                         className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                                                        required
                                                     />
+                                                    <p className="text-xs text-gray-500 mt-1">Optional - Leave blank if not applicable</p>
                                                 </div>
                                                 <div>
                                                     <label className="block text-sm font-bold text-gray-700 mb-2">Tax Due *</label>
@@ -1715,6 +1735,18 @@
                                                         defaultValue={editingItem?.tachoDue}
                                                         className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                                                     />
+                                                </div>
+                                                <div id="maintenanceFieldContainer" style={{display: (editingItem?.vehicleType === 'truck') ? 'block' : 'none'}}>
+                                                    <label className="block text-sm font-bold text-gray-700 mb-2">
+                                                        🔧 Maintenance Due <span className="text-yellow-600">(Trucks Only - 8 Week Cycle)</span>
+                                                    </label>
+                                                    <input
+                                                        type="date"
+                                                        name="maintenanceDue"
+                                                        defaultValue={editingItem?.maintenanceDue}
+                                                        className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                                    />
+                                                    <p className="text-xs text-gray-600 mt-1">💡 You'll be reminded 7 days before maintenance is due</p>
                                                 </div>
                                                 <div>
                                                     <label className="block text-sm font-bold text-gray-700 mb-2">Insurance Due *</label>

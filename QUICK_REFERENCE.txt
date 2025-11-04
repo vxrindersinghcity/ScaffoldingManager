@@ -1,0 +1,159 @@
+╔══════════════════════════════════════════════════════════╗
+║                                                          ║
+║          QUICK REFERENCE - New Features v1.1           ║
+║                                                          ║
+╚══════════════════════════════════════════════════════════╝
+
+
+🚗 MOT FIELD NOW OPTIONAL
+==========================
+
+When Adding/Editing Vehicles:
+------------------------------
+• MOT field no longer has a red asterisk (*)
+• You can leave it BLANK
+• Just skip it and move to next field
+• Perfect for:
+  - Brand new vehicles
+  - MOT-exempt vehicles
+  - When you don't want MOT reminders
+
+
+🚚 TRUCK MAINTENANCE TRACKING
+==============================
+
+For Trucks/HGVs Only:
+---------------------
+• New field appears: "🔧 Maintenance Due"
+• Subtitle: "(Trucks Only - 8 Week Cycle)"
+
+How to Use:
+-----------
+1. When adding truck, scroll down to maintenance field
+2. Enter date for next maintenance (8 weeks from last)
+3. Save vehicle
+4. You'll see reminder 7 days before due date
+5. After servicing, mark as complete
+6. Edit vehicle and set new date (+8 weeks)
+
+
+📅 MAINTENANCE REMINDERS
+========================
+
+When You'll See Them:
+---------------------
+• 7 days before maintenance due
+• Shows on dashboard with other reminders
+• Yellow color theme with wrench icon 🔧
+
+What They Look Like:
+--------------------
+"🚚 AB12 XYZ - Maintenance due in 3 days"
+
+Actions:
+--------
+• Click "Mark Complete" when done
+• Edit vehicle to update next date
+
+
+⚡ QUICK TIPS
+=============
+
+✅ Cars/Vans:
+  • Fill what you need
+  • Skip MOT if not applicable
+  • No maintenance field (cars don't have it)
+
+✅ Trucks:
+  • All the same as cars, PLUS:
+  • Optional: Tacho due date
+  • Optional: Maintenance due date
+  • Maintenance = 8 week service cycle
+
+✅ Best Practice:
+  • Set maintenance 8 weeks from last service
+  • Mark complete after servicing
+  • Immediately set next date (+8 weeks)
+  • This keeps your reminders current
+
+
+🔔 REMINDER TIMELINE
+====================
+
+Insurance:    60 days before →
+MOT:          30 days before → (if set)
+Tacho:        30 days before → (trucks only, if set)
+Tax:          14 days before →
+Maintenance:   7 days before → (trucks only, if set) ✓ NEW
+
+
+📊 WHAT SHOWS IN EXCEL EXPORTS
+===============================
+
+For All Vehicles:
+-----------------
+• Registration
+• Type
+• Owner Name
+• Insurance Company
+• MOT Due (shows "N/A" if blank) ✓ NEW
+• Tax Due
+• Insurance Due
+
+For Trucks (Additional):
+------------------------
+• Tacho Due (if set)
+• Maintenance Due (if set) ✓ NEW
+
+
+🎯 COMMON SCENARIOS
+===================
+
+Scenario A: "I don't need MOT tracking"
+→ Solution: Just leave MOT field blank when adding vehicle
+→ Result: No MOT reminders, everything else works
+
+Scenario B: "My truck needs service every 8 weeks"
+→ Solution: Fill in "Maintenance Due" field with date
+→ Result: Get reminder 7 days before due date
+
+Scenario C: "I just serviced my truck"
+→ Solution: Mark maintenance complete, edit vehicle
+→ Action: Set new date 8 weeks from today
+→ Result: New reminder scheduled automatically
+
+
+💾 AFTER UPGRADE
+================
+
+What You'll Notice:
+-------------------
+1. MOT field no longer required (no red asterisk)
+2. Truck form has new maintenance field
+3. Dashboard may show new maintenance reminders
+4. Excel exports include maintenance dates
+
+What Won't Change:
+------------------
+1. All your existing vehicles still there
+2. All existing dates preserved
+3. Everything else works exactly the same
+4. No data loss whatsoever
+
+
+⚠️ REMEMBER
+===========
+
+• Run migrate_database.py BEFORE first use (if upgrading)
+• Backup database before upgrading
+• MOT optional for NEW vehicles (existing kept)
+• Maintenance tracking ONLY for trucks
+• 7-day reminder window for maintenance
+• Mark complete and update date after service
+
+
+════════════════════════════════════════════════════════════
+
+          Print this page and keep it handy! 📄
+
+════════════════════════════════════════════════════════════
