@@ -1,12 +1,67 @@
-import json
+#!/usr/bin/env python3
+"""
+Import Jobs into Scaffolding Business Database
+Fixed version that matches your current schema
+"""
+
+import sqlite3
+import os
 import re
 from datetime import datetime
 
-# Parse the job data from both PDFs
+# Database path
+DB_PATH = os.path.join(os.path.expanduser('~'), 'scaffolding_business.db')
+
+# Areas mapping
+AREA_MAPPING = {
+    'peterborough': 'Peterborough',
+    'leicester': 'Leicester',
+    'london': 'London',
+    'birmingham': 'Birmingham',
+    'bhm': 'Birmingham'
+}
+
+def extract_postcode(address):
+    """Extract UK postcode from address"""
+    pattern = r'\b([A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2})\b'
+    match = re.search(pattern, address.upper())
+    if match:
+        return match.group(1)
+    return ''
+
+def parse_date(date_str):
+    """Parse date string to YYYY-MM-DD format"""
+    try:
+        date_obj = datetime.strptime(date_str.strip(), '%m/%d/%Y')
+        return date_obj.strftime('%Y-%m-%d')
+    except:
+        return date_str.strip()
+
+def map_status(status_str):
+    """Map status from CSV to database status"""
+    status = status_str.lower().strip()
+    if status == 'removed':
+        return 'completed'
+    elif status == 'done':
+        return 'active'
+    else:
+        return 'pending'
+
+def generate_job_number(index, area):
+    """Generate unique job number"""
+    prefix = {
+        'Peterborough': 'PB',
+        'Leicester': 'LC',
+        'London': 'LD',
+        'Birmingham': 'BH'
+    }.get(area, 'JB')
+    return f"{prefix}{str(index + 1000).zfill(5)}"
+
 def parse_jobs():
+    """Parse all job data"""
     jobs = []
     
-    # Peterborough jobs (from first PDF)
+    # Peterborough jobs
     peterborough_data = """
 9/10/2024,u shape,1 holdich st pe3 6dh,1000,removed,karan
 9/13/2024,u shape,64 exeter rd pe1 3qa,1000,removed,karan
@@ -185,8 +240,7 @@ def parse_jobs():
 10/18/2025,front back l double,79 harris st pe1 2lz,900,done,anmol
 10/20/2025,u shape back l,42 lime tree ave pe1 2ns,1200,done,anmol
 """
-
-    # Leicester jobs
+     # Leicester jobs
     leicester_data = """
 11/23/2024,front back,99 wand st le4 5bu,700,removed,jandu
 11/23/2024,u shape,54 scarborough rd le4 6pf,1000,removed,jandu
@@ -210,10 +264,10 @@ def parse_jobs():
     # London jobs
     london_data = """
 12/7/2024,u shape gutar leval,3 amersham ave london n18 1ds,1600,removed,jaramn
-"""
-
-    # Birmingham/BHM jobs
-    bhm_data = """
+"""   
+    
+    # Birmingham jobs
+    birmingham_data = """
 12/19/2024,front back,24 molesworth avenue cv3 1bu,0,removed,jarman
 12/19/2024,front back,735 warwick rd b11 2ha,0,removed,jarman
 12/19/2024,front back,97 white rd b67 7pq,0,removed,jarman
@@ -269,137 +323,137 @@ def parse_jobs():
 10/13/2025,front back l double,98 victoria st de14 2ls,1100,done,dhindsa
 10/13/2025,u shape back l,111 oldknow road b10 0ja,1600,done,dhindsa
 """
-
-    # Process each dataset
-    for line in peterborough_data.strip().split('\n'):
-        if line:
-            parts = line.split(',')
-            if len(parts) >= 6:
-                date_str = parts[0].strip()
-                # Parse date
-                try:
-                    date_obj = datetime.strptime(date_str, '%m/%d/%Y')
-                    formatted_date = date_obj.strftime('%Y-%m-%d')
-                except:
-                    formatted_date = date_str
-                
-                job = {
-                    'date': formatted_date,
-                    'jobType': parts[1].strip(),
-                    'address': parts[2].strip(),
-                    'area': 'Peterborough',
-                    'postcode': extract_postcode(parts[2]),
-                    'price': float(parts[3]) if parts[3] else 0,
-                    'status': parts[4].strip(),
-                    'fitter': parts[5].strip() if len(parts) > 5 else ''
-                }
-                jobs.append(job)
     
-    for line in leicester_data.strip().split('\n'):
-        if line:
-            parts = line.split(',')
-            if len(parts) >= 6:
-                date_str = parts[0].strip()
-                try:
-                    date_obj = datetime.strptime(date_str, '%m/%d/%Y')
-                    formatted_date = date_obj.strftime('%Y-%m-%d')
-                except:
-                    formatted_date = date_str
-                
-                job = {
-                    'date': formatted_date,
-                    'jobType': parts[1].strip(),
-                    'address': parts[2].strip(),
-                    'area': 'Leicester',
-                    'postcode': extract_postcode(parts[2]),
-                    'price': float(parts[3]) if parts[3] and parts[3] != '0' else 0,
-                    'status': parts[4].strip(),
-                    'fitter': parts[5].strip() if len(parts) > 5 else ''
-                }
-                jobs.append(job)
+    datasets = [
+        ('Peterborough', peterborough_data),
+        ('Leicester', leicester_data),
+        ('London', london_data),
+        ('Birmingham', birmingham_data)
+    ]
     
-    for line in london_data.strip().split('\n'):
-        if line:
-            parts = line.split(',')
-            if len(parts) >= 6:
-                date_str = parts[0].strip()
-                try:
-                    date_obj = datetime.strptime(date_str, '%m/%d/%Y')
-                    formatted_date = date_obj.strftime('%Y-%m-%d')
-                except:
-                    formatted_date = date_str
+    for area, data in datasets:
+        for line in data.strip().split('\n'):
+            if not line.strip():
+                continue
                 
-                job = {
-                    'date': formatted_date,
-                    'jobType': parts[1].strip(),
-                    'address': parts[2].strip(),
-                    'area': 'London',
-                    'postcode': extract_postcode(parts[2]),
-                    'price': float(parts[3]) if parts[3] else 0,
-                    'status': parts[4].strip(),
-                    'fitter': parts[5].strip() if len(parts) > 5 else ''
-                }
-                jobs.append(job)
-    
-    for line in bhm_data.strip().split('\n'):
-        if line:
-            parts = line.split(',')
-            if len(parts) >= 6:
-                date_str = parts[0].strip()
-                try:
-                    date_obj = datetime.strptime(date_str, '%m/%d/%Y')
-                    formatted_date = date_obj.strftime('%Y-%m-%d')
-                except:
-                    formatted_date = date_str
-                
-                job = {
-                    'date': formatted_date,
-                    'jobType': parts[1].strip(),
-                    'address': parts[2].strip(),
-                    'area': 'Birmingham',
-                    'postcode': extract_postcode(parts[2]),
-                    'price': float(parts[3]) if parts[3] and parts[3] != '0' else 0,
-                    'status': parts[4].strip(),
-                    'fitter': parts[5].strip() if len(parts) > 5 else ''
-                }
-                jobs.append(job)
+            parts = [p.strip() for p in line.split(',')]
+            if len(parts) < 5:
+                continue
+            
+            date_str = parse_date(parts[0])
+            job_type = parts[1]
+            address = parts[2]
+            price = float(parts[3]) if parts[3] and parts[3] != '0' else 0
+            status = map_status(parts[4])
+            fitter = parts[5] if len(parts) > 5 else ''
+            
+            job = {
+                'date': date_str,
+                'jobType': job_type,
+                'address': address,
+                'area': area,
+                'price': price,
+                'status': status,
+                'fitter': fitter
+            }
+            jobs.append(job)
     
     return jobs
 
-def extract_postcode(address):
-    # Extract UK postcode pattern
-    pattern = r'\b([A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2})\b'
-    match = re.search(pattern, address.upper())
-    if match:
-        return match.group(1)
-    return ''
+def import_jobs_to_db():
+    """Import jobs into the database"""
+    
+    if not os.path.exists(DB_PATH):
+        print(f"❌ Database not found at: {DB_PATH}")
+        print("Please run the main application first to create the database.")
+        return
+    
+    print("=" * 60)
+    print("  SCAFFOLDING BUSINESS - JOB IMPORT TOOL")
+    print("=" * 60)
+    print()
+    print(f"📂 Database: {DB_PATH}")
+    print()
+    
+    # Parse jobs
+    print("📋 Parsing job data...")
+    jobs = parse_jobs()
+    print(f"✅ Found {len(jobs)} jobs to import")
+    print()
+    
+    # Show breakdown by area
+    area_counts = {}
+    for job in jobs:
+        area = job['area']
+        area_counts[area] = area_counts.get(area, 0) + 1
+    
+    print("📊 Jobs by area:")
+    for area, count in sorted(area_counts.items()):
+        print(f"   • {area}: {count} jobs")
+    print()
+    
+    # Ask for confirmation
+    response = input("Do you want to import these jobs? (yes/no): ")
+    if response.lower() != 'yes':
+        print("❌ Import cancelled")
+        return
+    
+    # Import to database
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    imported = 0
+    skipped = 0
+    
+    print()
+    print("📥 Importing jobs...")
+    
+    for i, job in enumerate(jobs):
+        job_number = generate_job_number(i, job['area'])
+        
+        try:
+            cursor.execute('''
+                INSERT INTO jobs (
+                    jobNumber, clientName, location, area, jobType,
+                    startDate, status, value, notes,
+                    createdAt, updatedAt
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            ''', (
+                job_number,
+                f"Client at {job['address'][:30]}...",  # Use address as client name
+                job['address'],
+                job['area'],
+                job['jobType'],
+                job['date'],
+                job['status'],
+                job['price'],
+                f"Fitter: {job['fitter']}" if job['fitter'] else None
+            ))
+            imported += 1
+            
+            if imported % 10 == 0:
+                print(f"   ✓ Imported {imported} jobs...")
+                
+        except sqlite3.IntegrityError:
+            skipped += 1
+            continue
+        except Exception as e:
+            print(f"   ⚠️ Error importing job {job_number}: {e}")
+            skipped += 1
+    
+    conn.commit()
+    conn.close()
+    
+    print()
+    print("=" * 60)
+    print(f"✅ Import complete!")
+    print(f"   • Successfully imported: {imported} jobs")
+    if skipped > 0:
+        print(f"   • Skipped (duplicates/errors): {skipped} jobs")
+    print("=" * 60)
+    print()
 
-# Generate job numbers
-def generate_job_number(index, area):
-    prefix = {
-        'Peterborough': 'PB',
-        'Leicester': 'LC',
-        'London': 'LD',
-        'Birmingham': 'BH'
-    }.get(area, 'JB')
-    return f"{prefix}{str(index + 1000).zfill(5)}"
-
-# Parse and save jobs
-jobs = parse_jobs()
-for i, job in enumerate(jobs):
-    job['jobNumber'] = generate_job_number(i, job['area'])
-    job['id'] = i + 1
-
-# Save to JSON
-with open('jobs_import.json', 'w') as f:
-    json.dump(jobs, f, indent=2)
-
-print(f"Parsed {len(jobs)} jobs successfully")
-print("Jobs by area:")
-areas = {}
-for job in jobs:
-    area = job['area']
-    areas[area] = areas.get(area, 0) + 1
-
-for area, count in areas.items():
-    print(f"  {area}: {count} jobs")
+if __name__ == '__main__':
+    import_jobs_to_db()
+    input("Press Enter to exit...")

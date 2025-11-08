@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Scaffolding Business Manager - Standalone Application
+Scaffolding Business Manager - Standalone Application with Jobs & Linking
 Complete business management system with embedded web interface
 """
 
@@ -41,6 +41,7 @@ def init_database():
             vat REAL,
             total REAL,
             notes TEXT,
+            linkedJobId INTEGER,
             createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
@@ -57,6 +58,7 @@ def init_database():
             date TEXT NOT NULL,
             quoteAmount REAL,
             notes TEXT,
+            linkedJobId INTEGER,
             createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
@@ -83,6 +85,29 @@ def init_database():
         )
     ''')
     
+    # Jobs table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS jobs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            jobNumber TEXT UNIQUE NOT NULL,
+            clientName TEXT NOT NULL,
+            location TEXT NOT NULL,
+            area TEXT,
+            jobType TEXT,
+            truck TEXT,
+            driver TEXT,
+            startDate TEXT,
+            endDate TEXT,
+            status TEXT DEFAULT 'pending',
+            value REAL,
+            linkedInvoiceId INTEGER,
+            linkedInquiryId INTEGER,
+            notes TEXT,
+            createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
     conn.commit()
     conn.close()
     print(f"✅ Database initialized at: {DB_PATH}")
@@ -106,12 +131,13 @@ def create_invoice():
     try:
         cursor.execute('''
             INSERT INTO invoices (invoiceNumber, clientName, clientAddress, clientPhone, 
-                                date, status, items, subtotal, vat, total, notes)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                date, status, items, subtotal, vat, total, notes, linkedJobId)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             data['invoiceNumber'], data['clientName'], data.get('clientAddress'),
             data.get('clientPhone'), data['date'], data['status'], data['items'],
-            data['subtotal'], data['vat'], data['total'], data.get('notes')
+            data['subtotal'], data['vat'], data['total'], data.get('notes'),
+            data.get('linkedJobId')
         ))
         conn.commit()
         invoice_id = cursor.lastrowid
@@ -129,12 +155,13 @@ def update_invoice(invoice_id):
     cursor.execute('''
         UPDATE invoices 
         SET invoiceNumber=?, clientName=?, clientAddress=?, clientPhone=?,
-            date=?, status=?, items=?, subtotal=?, vat=?, total=?, notes=?
+            date=?, status=?, items=?, subtotal=?, vat=?, total=?, notes=?, linkedJobId=?
         WHERE id=?
     ''', (
         data['invoiceNumber'], data['clientName'], data.get('clientAddress'),
         data.get('clientPhone'), data['date'], data['status'], data['items'],
-        data['subtotal'], data['vat'], data['total'], data.get('notes'), invoice_id
+        data['subtotal'], data['vat'], data['total'], data.get('notes'), 
+        data.get('linkedJobId'), invoice_id
     ))
     conn.commit()
     conn.close()
@@ -166,11 +193,12 @@ def create_inquiry():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT INTO inquiries (name, phone, email, location, status, date, quoteAmount, notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO inquiries (name, phone, email, location, status, date, quoteAmount, notes, linkedJobId)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
         data['name'], data['phone'], data.get('email'), data['location'],
-        data['status'], data['date'], data.get('quoteAmount'), data.get('notes')
+        data['status'], data['date'], data.get('quoteAmount'), data.get('notes'),
+        data.get('linkedJobId')
     ))
     conn.commit()
     inquiry_id = cursor.lastrowid
@@ -184,11 +212,12 @@ def update_inquiry(inquiry_id):
     cursor = conn.cursor()
     cursor.execute('''
         UPDATE inquiries 
-        SET name=?, phone=?, email=?, location=?, status=?, date=?, quoteAmount=?, notes=?
+        SET name=?, phone=?, email=?, location=?, status=?, date=?, quoteAmount=?, notes=?, linkedJobId=?
         WHERE id=?
     ''', (
         data['name'], data['phone'], data.get('email'), data['location'],
-        data['status'], data['date'], data.get('quoteAmount'), data.get('notes'), inquiry_id
+        data['status'], data['date'], data.get('quoteAmount'), data.get('notes'),
+        data.get('linkedJobId'), inquiry_id
     ))
     conn.commit()
     conn.close()
@@ -202,6 +231,119 @@ def delete_inquiry(inquiry_id):
     conn.commit()
     conn.close()
     return jsonify({'message': 'Inquiry deleted successfully'})
+
+# API Routes - Jobs
+@app.route('/api/jobs', methods=['GET'])
+def get_jobs():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM jobs ORDER BY createdAt DESC')
+    jobs = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return jsonify(jobs)
+
+@app.route('/api/jobs', methods=['POST'])
+def create_job():
+    data = request.json
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            INSERT INTO jobs (jobNumber, clientName, location, area, jobType, truck, driver, startDate, 
+                            endDate, status, value, linkedInvoiceId, linkedInquiryId, notes)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            data['jobNumber'], data['clientName'], data['location'], data.get('area'),
+            data.get('jobType'), data.get('truck'), data.get('driver'), data.get('startDate'), data.get('endDate'),
+            data.get('status', 'pending'), data.get('value'), data.get('linkedInvoiceId'),
+            data.get('linkedInquiryId'), data.get('notes')
+        ))
+        conn.commit()
+        job_id = cursor.lastrowid
+        conn.close()
+        return jsonify({'id': job_id, 'message': 'Job created successfully'}), 201
+    except sqlite3.IntegrityError:
+        conn.close()
+        return jsonify({'error': 'Job number already exists'}), 400
+
+@app.route('/api/jobs/<int:job_id>', methods=['PUT'])
+def update_job(job_id):
+    data = request.json
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        UPDATE jobs 
+        SET jobNumber=?, clientName=?, location=?, area=?, jobType=?, truck=?, driver=?, startDate=?,
+            endDate=?, status=?, value=?, linkedInvoiceId=?, linkedInquiryId=?, notes=?,
+            updatedAt=CURRENT_TIMESTAMP
+        WHERE id=?
+    ''', (
+        data['jobNumber'], data['clientName'], data['location'], data.get('area'),
+        data.get('jobType'), data.get('truck'), data.get('driver'), data.get('startDate'), data.get('endDate'),
+        data.get('status'), data.get('value'), data.get('linkedInvoiceId'),
+        data.get('linkedInquiryId'), data.get('notes'), job_id
+    ))
+    conn.commit()
+    conn.close()
+    return jsonify({'message': 'Job updated successfully'})
+
+@app.route('/api/jobs/<int:job_id>', methods=['DELETE'])
+def delete_job(job_id):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM jobs WHERE id=?', (job_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'message': 'Job deleted successfully'})
+
+@app.route('/api/jobs/bulk-delete', methods=['POST'])
+def bulk_delete_jobs():
+    data = request.json
+    ids = data.get('ids', [])
+    if not ids:
+        return jsonify({'error': 'No IDs provided'}), 400
+    
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    placeholders = ','.join('?' * len(ids))
+    cursor.execute(f'DELETE FROM jobs WHERE id IN ({placeholders})', ids)
+    conn.commit()
+    conn.close()
+    return jsonify({'message': f'{len(ids)} jobs deleted successfully'})
+
+@app.route('/api/jobs/export', methods=['GET'])
+def export_jobs():
+    import csv
+    from io import StringIO
+    
+    area = request.args.get('area', 'all')
+    
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    
+    if area == 'all':
+        cursor.execute('SELECT * FROM jobs ORDER BY createdAt DESC')
+    else:
+        cursor.execute('SELECT * FROM jobs WHERE area = ? ORDER BY createdAt DESC', (area,))
+    
+    jobs = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    
+    if not jobs:
+        return jsonify({'error': 'No jobs to export'}), 404
+    
+    output = StringIO()
+    writer = csv.DictWriter(output, fieldnames=jobs[0].keys())
+    writer.writeheader()
+    writer.writerows(jobs)
+    
+    from flask import make_response
+    response = make_response(output.getvalue())
+    response.headers['Content-Type'] = 'text/csv'
+    response.headers['Content-Disposition'] = f'attachment; filename=jobs_export_{area}_{datetime.now().strftime("%Y%m%d")}.csv'
+    return response
 
 # API Routes - Vehicles
 @app.route('/api/vehicles', methods=['GET'])
@@ -273,7 +415,7 @@ def delete_vehicle(vehicle_id):
 # Serve the HTML interface
 @app.route('/')
 def index():
-    return send_from_directory('.', 'complete_scaffolding_manager.html')
+    return send_from_directory('.', 'complete_scaffolding_dashboard.html')
 
 def open_browser():
     """Open the default browser after a short delay"""
@@ -284,7 +426,7 @@ def open_browser():
 def main():
     """Main application entry point"""
     print("=" * 60)
-    print("🏗️  SCAFFOLDING BUSINESS MANAGER")
+    print("🏗️  KHALSA SCAFFOLDING - BUSINESS MANAGER")
     print("=" * 60)
     print()
     
