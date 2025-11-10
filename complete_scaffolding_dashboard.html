@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -274,7 +275,9 @@
             margin-bottom: 8px;
         }
 
-        .form-input, .form-select, .form-textarea {
+        .form-input,
+        .form-select,
+        .form-textarea {
             width: 100%;
             padding: 12px 16px;
             border: 2px solid var(--border);
@@ -283,7 +286,9 @@
             transition: all 0.2s;
         }
 
-        .form-input:focus, .form-select:focus, .form-textarea:focus {
+        .form-input:focus,
+        .form-select:focus,
+        .form-textarea:focus {
             outline: none;
             border-color: var(--primary);
             box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
@@ -377,7 +382,6 @@
             gap: 16px;
             padding: 16px;
             background: var(--bg-primary);
-            border-radius: 12px;
             border-left: 4px solid var(--warning);
             margin-bottom: 12px;
         }
@@ -423,8 +427,49 @@
             border-radius: 12px;
             margin-bottom: 16px;
         }
+
+        /* --- NEW VEHICLE STYLES --- */
+        .date-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        /* Color classes for dot and text */
+        .dot-green { background-color: #10b981; }
+        .date-safe { color: #10b981; } /* Green */
+
+        .dot-yellow { background-color: #f59e0b; }
+        .date-warning { color: #f59e0b; } /* Yellow (15-30 days) */
+
+        .dot-orange { background-color: #f97316; }
+        .date-orange { color: #f97316; } /* Orange (8-14 days) */
+
+        .dot-red { background-color: #ef4444; }
+        .date-danger { color: #ef4444; } /* Red (1-7 days/Today) */
+
+        .dot-darkred { background-color: #dc2626; }
+        .date-overdue { color: #dc2626; } /* Dark Red */
+
+        .date-na {
+            color: var(--text-secondary);
+        }
+        /* --- END NEW VEHICLE STYLES --- */
     </style>
 </head>
+
 <body>
     <div id="root"></div>
 
@@ -441,6 +486,45 @@
         const saveAreas = (areas) => {
             localStorage.setItem('scaffolding_areas', JSON.stringify(areas));
         };
+
+        /**
+         * Determines the color, days until due, and status for a vehicle date.
+         * Logic:
+         * < 0 days: Overdue (Dark Red)
+         * 0-7 days: Urgent (Red)
+         * 8-14 days: Warning (Orange)
+         * 15-30 days: Warning (Yellow)
+         * > 30 days: Safe (Green)
+         */
+        function getDateIndicatorData(dateStr, actioned) {
+            if (!dateStr) {
+                return { status: 'N/A', daysUntil: null, colorClass: 'date-na', dotColor: 'bg-gray-400' };
+            }
+            // If actioned, treat as safe/completed, ignore days left.
+            if (actioned) {
+                return { status: 'Actioned', daysUntil: null, colorClass: 'date-safe', dotColor: 'dot-green' };
+            }
+
+            const today = new Date();
+            const dueDate = new Date(dateStr);
+            dueDate.setHours(0, 0, 0, 0);
+            today.setHours(0, 0, 0, 0);
+
+            const daysUntil = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
+
+            if (daysUntil < 0) {
+                return { status: 'Overdue', daysUntil, colorClass: 'date-overdue', dotColor: 'dot-darkred' };
+            } else if (daysUntil >= 0 && daysUntil <= 7) {
+                return { status: 'Urgent', daysUntil, colorClass: 'date-danger', dotColor: 'dot-red' };
+            } else if (daysUntil >= 8 && daysUntil <= 14) {
+                return { status: 'Warning (Orange)', daysUntil, colorClass: 'date-orange', dotColor: 'dot-orange' };
+            } else if (daysUntil >= 15 && daysUntil <= 30) {
+                return { status: 'Warning (Yellow)', daysUntil, colorClass: 'date-warning', dotColor: 'dot-yellow' };
+            } else {
+                return { status: 'Safe', daysUntil, colorClass: 'date-safe', dotColor: 'dot-green' };
+            }
+        }
+
 
         function App() {
             const [activeView, setActiveView] = useState('dashboard');
@@ -509,10 +593,10 @@
                 vehicles.forEach(vehicle => {
                     const checkDate = (dateStr, type, advanceDays, actioned) => {
                         if (!dateStr || actioned) return;
-                        
+
                         const dueDate = new Date(dateStr);
                         const daysUntil = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
-                        
+
                         if (daysUntil <= advanceDays) {
                             const vehicleLabel = vehicle.vehicleType === 'truck' ? '🚚' : '🚗';
                             reminders.push({
@@ -524,20 +608,21 @@
                                 daysUntil: daysUntil,
                                 isOverdue: daysUntil < 0,
                                 isUrgent: daysUntil <= 7 && daysUntil >= 0,
-                                actionField: type === 'MOT' ? 'motActioned' : 
-                                           type === 'Tax' ? 'taxActioned' : 
-                                           type === 'Tacho' ? 'tachoActioned' :
-                                           type === 'Maintenance' ? 'maintenanceActioned' :
-                                           'insuranceActioned',
+                                actionField: type === 'MOT' ? 'motActioned' :
+                                    type === 'Tax' ? 'taxActioned' :
+                                        type === 'Tacho' ? 'tachoActioned' :
+                                            type === 'Maintenance' ? 'maintenanceActioned' :
+                                                'insuranceActioned',
                                 needsReset: type === 'Maintenance'
                             });
                         }
                     };
 
+                    // Reminders are configured based on a fixed number of days for the dashboard
                     checkDate(vehicle.motDue, 'MOT', 30, vehicle.motActioned);
                     checkDate(vehicle.taxDue, 'Tax', 14, vehicle.taxActioned);
                     checkDate(vehicle.insuranceDue, 'Insurance', 60, vehicle.insuranceActioned);
-                    
+
                     if (vehicle.vehicleType === 'truck') {
                         checkDate(vehicle.tachoDue, 'Tacho', 30, vehicle.tachoActioned);
                         checkDate(vehicle.maintenanceDue, 'Maintenance', 7, vehicle.maintenanceActioned);
@@ -558,33 +643,33 @@
             const formatDateTime = (date) => {
                 const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
                 const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-                
+
                 const dayName = days[date.getDay()];
                 const day = date.getDate();
                 const month = months[date.getMonth()];
                 const year = date.getFullYear();
-                
+
                 let hours = date.getHours();
                 const minutes = date.getMinutes().toString().padStart(2, '0');
                 const seconds = date.getSeconds().toString().padStart(2, '0');
                 const ampm = hours >= 12 ? 'PM' : 'AM';
                 hours = hours % 12;
                 hours = hours ? hours : 12;
-                
+
                 return `${dayName}, ${day} ${month} ${year} • ${hours}:${minutes}:${seconds} ${ampm}`;
             };
 
             return (
                 <div className="app-container">
-                    <Sidebar 
-                        activeView={activeView} 
+                    <Sidebar
+                        activeView={activeView}
                         setActiveView={setActiveView}
                         stats={stats}
                     />
                     <main className="main-content">
                         {activeView === 'dashboard' && (
-                            <Dashboard 
-                                stats={stats} 
+                            <Dashboard
+                                stats={stats}
                                 invoices={invoices}
                                 vehicles={vehicles}
                                 openModal={openModal}
@@ -596,7 +681,7 @@
                             />
                         )}
                         {activeView === 'invoices' && (
-                            <InvoicesView 
+                            <InvoicesView
                                 invoices={invoices}
                                 jobs={jobs}
                                 openModal={openModal}
@@ -604,7 +689,7 @@
                             />
                         )}
                         {activeView === 'inquiries' && (
-                            <InquiriesView 
+                            <InquiriesView
                                 inquiries={inquiries}
                                 jobs={jobs}
                                 openModal={openModal}
@@ -612,24 +697,25 @@
                             />
                         )}
                         {activeView === 'jobs' && (
-                            <JobsView 
+                            <JobsView
                                 jobs={jobs}
                                 invoices={invoices}
                                 inquiries={inquiries}
                                 vehicles={vehicles}
                                 openModal={openModal}
                                 loadData={loadData}
+                                areas={areas}
                             />
                         )}
                         {activeView === 'vehicles' && (
-                            <VehiclesView 
+                            <VehiclesView
                                 vehicles={vehicles}
                                 openModal={openModal}
                                 loadData={loadData}
                             />
                         )}
                         {activeView === 'settings' && (
-                            <SettingsView 
+                            <SettingsView
                                 areas={areas}
                                 setAreas={setAreas}
                                 jobs={jobs}
@@ -662,12 +748,12 @@
                         <div className="logo">
                             <div className="logo-icon">🏗️</div>
                             <div>
-                                <h1 style={{fontSize: '18px', fontWeight: 700}}>Khalsa Scaffolding</h1>
-                                <p style={{fontSize: '12px', opacity: 0.9}}>Business Manager</p>
+                                <h1 style={{ fontSize: '18px', fontWeight: 700 }}>Khalsa Scaffolding</h1>
+                                <p style={{ fontSize: '12px', opacity: 0.9 }}>Business Manager</p>
                             </div>
                         </div>
                     </div>
-                    
+
                     <nav className="sidebar-nav">
                         <div className={`nav-item ${activeView === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveView('dashboard')}>
                             <span>📊</span>
@@ -706,19 +792,20 @@
             const markVehicleActioned = async (reminder) => {
                 const vehicle = vehicles.find(v => v.id === reminder.vehicleId);
                 if (!vehicle) return;
-                
+
                 try {
                     let updatedVehicle = { ...vehicle, [reminder.actionField]: true };
-                    
+
                     if (reminder.needsReset && reminder.type === 'Maintenance') {
-                        const currentDate = new Date(reminder.dueDate);
+                        // For Maintenance: Automatically calculate next date (8 weeks) and reset actioned status
+                        const currentDate = reminder.dueDate ? new Date(reminder.dueDate) : new Date(); // Use existing due date or today if missing
                         const nextDate = new Date(currentDate);
                         nextDate.setDate(nextDate.getDate() + 56);
-                        
+
                         const nextDateStr = nextDate.toISOString().split('T')[0];
                         updatedVehicle.maintenanceDue = nextDateStr;
-                        updatedVehicle.maintenanceActioned = false;
-                        
+                        updatedVehicle.maintenanceActioned = false; // Reset status for the new date
+
                         if (confirm(`Maintenance completed! Next maintenance will be due on ${nextDate.toLocaleDateString('en-GB')} (8 weeks from now). Continue?`)) {
                             await fetch(`${API_URL}/vehicles/${reminder.vehicleId}`, {
                                 method: 'PUT',
@@ -729,12 +816,14 @@
                             alert('✅ Maintenance marked complete and next date set!');
                         }
                     } else {
+                        // For all others: Just mark actioned as true
                         await fetch(`${API_URL}/vehicles/${reminder.vehicleId}`, {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(updatedVehicle)
                         });
                         loadData();
+                        alert(`✅ ${reminder.type} for ${reminder.vehicle} marked as Actioned!`);
                     }
                 } catch (error) {
                     alert('❌ Error updating vehicle');
@@ -744,10 +833,10 @@
             return (
                 <>
                     <div className="page-header">
-                        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px'}}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                             <div>
-                                <h1 style={{fontSize: '32px', fontWeight: 700, marginBottom: '8px'}}>Dashboard</h1>
-                                <p style={{color: 'var(--text-secondary)'}}>Welcome back! Here's what's happening with your business.</p>
+                                <h1 style={{ fontSize: '32px', fontWeight: 700, marginBottom: '8px' }}>Dashboard</h1>
+                                <p style={{ color: 'var(--text-secondary)' }}>Welcome back! Here's what's happening with your business.</p>
                             </div>
                         </div>
                         <div className="date-time-display">
@@ -758,58 +847,58 @@
 
                     <div className="stats-grid">
                         <div className="stat-card">
-                            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start'}}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                 <div>
-                                    <div style={{fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px'}}>TOTAL REVENUE</div>
-                                    <div style={{fontSize: '36px', fontWeight: 700}}>£{stats.totalRevenue.toLocaleString()}</div>
+                                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>TOTAL REVENUE</div>
+                                    <div style={{ fontSize: '36px', fontWeight: 700 }}>£{stats.totalRevenue.toLocaleString()}</div>
                                 </div>
-                                <div style={{fontSize: '48px'}}>💰</div>
+                                <div style={{ fontSize: '48px' }}>💰</div>
                             </div>
                         </div>
 
-                        <div className="stat-card" style={{'--primary': 'var(--warning)'}}>
-                            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start'}}>
+                        <div className="stat-card" style={{ '--primary': 'var(--warning)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                 <div>
-                                    <div style={{fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px'}}>PENDING INVOICES</div>
-                                    <div style={{fontSize: '36px', fontWeight: 700}}>{stats.pendingInvoices}</div>
+                                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>PENDING INVOICES</div>
+                                    <div style={{ fontSize: '36px', fontWeight: 700 }}>{stats.pendingInvoices}</div>
                                 </div>
-                                <div style={{fontSize: '48px'}}>⏳</div>
+                                <div style={{ fontSize: '48px' }}>⏳</div>
                             </div>
                         </div>
 
-                        <div className="stat-card" style={{'--primary': 'var(--success)'}}>
-                            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start'}}>
+                        <div className="stat-card" style={{ '--primary': 'var(--success)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                 <div>
-                                    <div style={{fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px'}}>ACTIVE JOBS</div>
-                                    <div style={{fontSize: '36px', fontWeight: 700}}>{stats.activeJobs}</div>
+                                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>ACTIVE JOBS</div>
+                                    <div style={{ fontSize: '36px', fontWeight: 700 }}>{stats.activeJobs}</div>
                                 </div>
-                                <div style={{fontSize: '48px'}}>🔨</div>
+                                <div style={{ fontSize: '48px' }}>🔨</div>
                             </div>
                         </div>
 
-                        <div className="stat-card" style={{'--primary': 'var(--danger)'}}>
-                            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start'}}>
+                        <div className="stat-card" style={{ '--primary': 'var(--danger)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                 <div>
-                                    <div style={{fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px'}}>NEW INQUIRIES</div>
-                                    <div style={{fontSize: '36px', fontWeight: 700}}>{stats.newInquiries}</div>
+                                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>NEW INQUIRIES</div>
+                                    <div style={{ fontSize: '36px', fontWeight: 700 }}>{stats.newInquiries}</div>
                                 </div>
-                                <div style={{fontSize: '48px'}}>💬</div>
+                                <div style={{ fontSize: '48px' }}>💬</div>
                             </div>
                         </div>
                     </div>
 
                     {reminders.length > 0 && (
                         <div className="section">
-                            <h2 style={{fontSize: '20px', fontWeight: 700, marginBottom: '24px'}}>🚨 Vehicle Reminders</h2>
+                            <h2 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '24px' }}>🚨 Vehicle Reminders</h2>
                             <div>
                                 {reminders.map((reminder, idx) => (
                                     <div key={idx} className={`reminder-item ${reminder.isOverdue ? 'overdue' : reminder.isUrgent ? 'urgent' : ''}`}>
-                                        <div style={{flex: 1}}>
-                                            <div style={{fontWeight: 600, marginBottom: '4px'}}>
+                                        <div style={{ flex: 1 }}>
+                                            <div style={{ fontWeight: 600, marginBottom: '4px' }}>
                                                 {reminder.vehicle} - {reminder.type} Due
                                                 {reminder.type === 'Maintenance' && ' (8-week cycle)'}
                                             </div>
-                                            <div style={{fontSize: '13px', color: 'var(--text-secondary)'}}>
+                                            <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
                                                 Owner: {reminder.owner} • Due: {new Date(reminder.dueDate).toLocaleDateString('en-GB')}
                                             </div>
                                         </div>
@@ -820,12 +909,12 @@
                                             fontWeight: 600,
                                             color: reminder.isOverdue ? '#dc2626' : reminder.isUrgent ? 'var(--danger)' : 'var(--warning)'
                                         }}>
-                                            {reminder.isOverdue ? `${Math.abs(reminder.daysUntil)} days overdue` : 
-                                             reminder.daysUntil === 0 ? 'Today' : 
-                                             reminder.daysUntil === 1 ? 'Tomorrow' : 
-                                             `${reminder.daysUntil} days`}
+                                            {reminder.isOverdue ? `${Math.abs(reminder.daysUntil)} days overdue` :
+                                                reminder.daysUntil === 0 ? 'Today' :
+                                                    reminder.daysUntil === 1 ? 'Tomorrow' :
+                                                        `${reminder.daysUntil} days`}
                                         </div>
-                                        <button 
+                                        <button
                                             className="btn btn-success btn-sm"
                                             onClick={() => markVehicleActioned(reminder)}
                                         >
@@ -838,8 +927,8 @@
                     )}
 
                     <div className="section">
-                        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px'}}>
-                            <h2 style={{fontSize: '20px', fontWeight: 700}}>📋 Recent Invoices</h2>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                            <h2 style={{ fontSize: '20px', fontWeight: 700 }}>📋 Recent Invoices</h2>
                             <button className="btn btn-secondary btn-sm" onClick={() => setActiveView('invoices')}>
                                 View All →
                             </button>
@@ -872,7 +961,7 @@
                                 </tbody>
                             </table>
                         ) : (
-                            <p style={{textAlign: 'center', padding: '40px', color: 'var(--text-secondary)'}}>
+                            <p style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
                                 No invoices yet. Create your first invoice to get started!
                             </p>
                         )}
@@ -911,10 +1000,10 @@
             return (
                 <>
                     <div className="page-header">
-                        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <div>
-                                <h1 style={{fontSize: '32px', fontWeight: 700, marginBottom: '8px'}}>Invoices</h1>
-                                <p style={{color: 'var(--text-secondary)'}}>Manage all your invoices and billing</p>
+                                <h1 style={{ fontSize: '32px', fontWeight: 700, marginBottom: '8px' }}>Invoices</h1>
+                                <p style={{ color: 'var(--text-secondary)' }}>Manage all your invoices and billing</p>
                             </div>
                             <button className="btn btn-primary" onClick={() => openModal('invoice')}>
                                 ➕ New Invoice
@@ -923,7 +1012,7 @@
                     </div>
 
                     <div className="section">
-                        <h2 style={{fontSize: '20px', fontWeight: 700, marginBottom: '24px'}}>📄 All Invoices</h2>
+                        <h2 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '24px' }}>📄 All Invoices</h2>
                         {invoices.length > 0 ? (
                             <table>
                                 <thead>
@@ -945,11 +1034,11 @@
                                             <td>{new Date(inv.date).toLocaleDateString('en-GB')}</td>
                                             <td><strong>£{(inv.total || 0).toLocaleString()}</strong></td>
                                             <td>
-                                                <select 
+                                                <select
                                                     value={inv.status}
                                                     onChange={(e) => updateStatus(inv.id, e.target.value)}
                                                     className="form-select"
-                                                    style={{width: 'auto', padding: '4px 8px', fontSize: '12px'}}
+                                                    style={{ width: 'auto', padding: '4px 8px', fontSize: '12px' }}
                                                 >
                                                     <option value="pending">Pending</option>
                                                     <option value="paid">Paid</option>
@@ -962,11 +1051,11 @@
                                                         🔗 Job #{inv.linkedJobId}
                                                     </span>
                                                 ) : (
-                                                    <span style={{fontSize: '12px', color: 'var(--text-secondary)'}}>-</span>
+                                                    <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>-</span>
                                                 )}
                                             </td>
                                             <td>
-                                                <div style={{display: 'flex', gap: '8px'}}>
+                                                <div style={{ display: 'flex', gap: '8px' }}>
                                                     <button className="btn btn-sm btn-secondary" onClick={() => openModal('invoice', inv)}>
                                                         ✏️
                                                     </button>
@@ -980,7 +1069,7 @@
                                 </tbody>
                             </table>
                         ) : (
-                            <p style={{textAlign: 'center', padding: '40px', color: 'var(--text-secondary)'}}>
+                            <p style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
                                 No invoices yet. Create your first invoice!
                             </p>
                         )}
@@ -1004,10 +1093,10 @@
             return (
                 <>
                     <div className="page-header">
-                        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <div>
-                                <h1 style={{fontSize: '32px', fontWeight: 700, marginBottom: '8px'}}>Inquiries</h1>
-                                <p style={{color: 'var(--text-secondary)'}}>Track and manage customer inquiries</p>
+                                <h1 style={{ fontSize: '32px', fontWeight: 700, marginBottom: '8px' }}>Inquiries</h1>
+                                <p style={{ color: 'var(--text-secondary)' }}>Track and manage customer inquiries</p>
                             </div>
                             <button className="btn btn-primary" onClick={() => openModal('inquiry')}>
                                 ➕ New Inquiry
@@ -1016,7 +1105,7 @@
                     </div>
 
                     <div className="section">
-                        <h2 style={{fontSize: '20px', fontWeight: 700, marginBottom: '24px'}}>💬 All Inquiries</h2>
+                        <h2 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '24px' }}>💬 All Inquiries</h2>
                         {inquiries.length > 0 ? (
                             <table>
                                 <thead>
@@ -1038,11 +1127,10 @@
                                             <td>{inq.location}</td>
                                             <td>{new Date(inq.date).toLocaleDateString('en-GB')}</td>
                                             <td>
-                                                <span className={`badge badge-${
-                                                    inq.status === 'new' ? 'danger' : 
-                                                    inq.status === 'contacted' ? 'warning' : 
-                                                    inq.status === 'quoted' ? 'info' : 'success'
-                                                }`}>
+                                                <span className={`badge badge-${inq.status === 'new' ? 'danger' :
+                                                        inq.status === 'contacted' ? 'warning' :
+                                                            inq.status === 'quoted' ? 'info' : 'success'
+                                                    }`}>
                                                     {inq.status}
                                                 </span>
                                             </td>
@@ -1052,11 +1140,11 @@
                                                         🔗 Job #{inq.linkedJobId}
                                                     </span>
                                                 ) : (
-                                                    <span style={{fontSize: '12px', color: 'var(--text-secondary)'}}>-</span>
+                                                    <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>-</span>
                                                 )}
                                             </td>
                                             <td>
-                                                <div style={{display: 'flex', gap: '8px'}}>
+                                                <div style={{ display: 'flex', gap: '8px' }}>
                                                     <button className="btn btn-sm btn-secondary" onClick={() => openModal('inquiry', inq)}>
                                                         ✏️
                                                     </button>
@@ -1070,7 +1158,7 @@
                                 </tbody>
                             </table>
                         ) : (
-                            <p style={{textAlign: 'center', padding: '40px', color: 'var(--text-secondary)'}}>
+                            <p style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
                                 No inquiries yet. Add your first inquiry!
                             </p>
                         )}
@@ -1079,14 +1167,51 @@
             );
         }
 
-        function JobsView({ jobs, invoices, inquiries, vehicles, openModal, loadData }) {
+        function JobsView({ jobs, openModal, loadData, areas }) {
+            const [searchText, setSearchText] = useState('');
+            const [selectedStatus, setSelectedStatus] = useState('all');
             const [selectedArea, setSelectedArea] = useState('all');
+            const [sortField, setSortField] = useState('date');
+            const [sortDirection, setSortDirection] = useState('asc');
             const [selectedJobs, setSelectedJobs] = useState([]);
 
-            // Get areas from parent
-            const areas = loadAreas();
 
-            const filteredJobs = selectedArea === 'all' ? jobs : jobs.filter(job => job.area === selectedArea);
+            const searchFiltered = jobs.filter(job => {
+                const searchLower = searchText.toLowerCase();
+                // 🔍 Search bar - searches job number, client, location, area, truck, driver, notes
+                return (
+                    (job.jobNumber && job.jobNumber.toLowerCase().includes(searchLower)) ||
+                    (job.clientName && job.clientName.toLowerCase().includes(searchLower)) ||
+                    (job.location && job.location.toLowerCase().includes(searchLower)) ||
+                    (job.area && job.area.toLowerCase().includes(searchLower)) ||
+                    (job.truck && job.truck.toLowerCase().includes(searchLower)) ||
+                    (job.driver && job.driver.toLowerCase().includes(searchLower)) ||
+                    (job.notes && job.notes.toLowerCase().includes(searchLower))
+                );
+            });
+
+            const statusFiltered = selectedStatus === 'all'
+                ? searchFiltered
+                : searchFiltered.filter(job => job.status === selectedStatus);
+
+            const areaFiltered = selectedArea === 'all'
+                ? statusFiltered
+                : statusFiltered.filter(job => job.area === selectedArea);
+
+            const filteredJobs = areaFiltered.sort((a, b) => {
+                if (sortField === 'date') {
+                    const dateA = new Date(a.startDate || 0);
+                    const dateB = new Date(b.startDate || 0);
+                    return sortDirection === 'asc' ? dateA - dateB : dateB - dateA;
+                } else if (sortField === 'client') {
+                    return sortDirection === 'asc' ? a.clientName.localeCompare(b.clientName) : b.clientName.localeCompare(a.clientName);
+                } else if (sortField === 'value') {
+                    return sortDirection === 'asc' ? (a.value || 0) - (b.value || 0) : (b.value || 0) - (a.value || 0);
+                } else if (sortField === 'status') {
+                    return sortDirection === 'asc' ? a.status.localeCompare(b.status) : b.status.localeCompare(a.status);
+                }
+                return 0;
+            });
 
             const deleteJob = async (id) => {
                 if (!confirm('Are you sure you want to delete this job?')) return;
@@ -1100,10 +1225,7 @@
             };
 
             const toggleJobSelection = (jobId) => {
-                setSelectedJobs(prev => 
-                    prev.includes(jobId) 
-                        ? prev.filter(id => id !== jobId)
-                        : [...prev, jobId]
+                setSelectedJobs(prev => prev.includes(jobId) ? prev.filter(id => id !== jobId) : [...prev, jobId]
                 );
             };
 
@@ -1120,9 +1242,7 @@
                     alert('Please select jobs to delete');
                     return;
                 }
-
                 if (!confirm(`Are you sure you want to delete ${selectedJobs.length} job(s)?`)) return;
-
                 try {
                     await fetch(`${API_URL}/jobs/bulk-delete`, {
                         method: 'POST',
@@ -1137,13 +1257,27 @@
                 }
             };
 
+            const getStatusBadge = (status) => {
+                switch (status) {
+                    case 'active':
+                        return <span className="badge badge-success">Active</span>;
+                    case 'completed':
+                        return <span className="badge badge-info">Completed</span>;
+                    case 'cancelled':
+                        return <span className="badge badge-danger">Cancelled</span>;
+                    case 'pending':
+                    default:
+                        return <span className="badge badge-warning">Pending</span>;
+                }
+            }
+
             return (
                 <>
                     <div className="page-header">
-                        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <div>
-                                <h1 style={{fontSize: '32px', fontWeight: 700, marginBottom: '8px'}}>Jobs</h1>
-                                <p style={{color: 'var(--text-secondary)'}}>Manage your scaffolding projects with truck & driver info</p>
+                                <h1 style={{ fontSize: '32px', fontWeight: 700, marginBottom: '8px' }}>Jobs</h1>
+                                <p style={{ color: 'var(--text-secondary)' }}>Manage all current, past, and future scaffolding jobs</p>
                             </div>
                             <button className="btn btn-primary" onClick={() => openModal('job')}>
                                 ➕ New Job
@@ -1152,31 +1286,77 @@
                     </div>
 
                     <div className="section">
-                        <div style={{marginBottom: '24px'}}>
-                            <h3 style={{fontSize: '16px', fontWeight: 600, marginBottom: '12px'}}>Filter by Area:</h3>
-                            <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px'}}>
-                                <button 
-                                    className={`btn btn-sm ${selectedArea === 'all' ? 'btn-primary' : 'btn-secondary'}`}
-                                    onClick={() => setSelectedArea('all')}
+                        <h2 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '24px' }}>🔨 All Jobs</h2>
+
+                        {/* Search, Filter, Sort Controls */}
+                        <div style={{ marginBottom: '24px', borderBottom: '1px solid var(--border)', paddingBottom: '16px' }}>
+                            {/* Search */}
+                            <input
+                                type="text"
+                                className="form-input"
+                                placeholder="🔍 Search job number, client, location, area, truck, driver, notes..."
+                                value={searchText}
+                                onChange={(e) => setSearchText(e.target.value)}
+                                style={{ marginBottom: '16px' }}
+                            />
+
+                            <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                                {/* Status Filter */}
+                                <select
+                                    className="form-select"
+                                    value={selectedStatus}
+                                    onChange={(e) => setSelectedStatus(e.target.value)}
+                                    style={{ width: '180px' }}
                                 >
+                                    <option value="all">📊 All Statuses</option>
+                                    <option value="pending">Pending</option>
+                                    <option value="active">Active</option>
+                                    <option value="completed">Completed</option>
+                                    <option value="cancelled">Cancelled</option>
+                                </select>
+
+                                {/* Sort Options */}
+                                <select
+                                    className="form-select"
+                                    value={sortField}
+                                    onChange={(e) => setSortField(e.target.value)}
+                                    style={{ width: '200px' }}
+                                >
+                                    <option value="date">🔢 Sort by Date</option>
+                                    <option value="client">Sort by Client</option>
+                                    <option value="value">Sort by Value</option>
+                                    <option value="status">Sort by Status</option>
+                                </select>
+                                <button className="btn btn-secondary btn-sm" onClick={() => setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')} >
+                                    {sortDirection === 'asc' ? '⬆️ Asc' : '⬇️ Desc'}
+                                </button>
+                            </div>
+                            {/* Result Counter */}
+                            <div style={{ marginTop: '12px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                                Showing <strong>{filteredJobs.length}</strong> of {jobs.length} total jobs
+                            </div>
+                        </div>
+
+                        {/* Area Filter */}
+                        <div style={{ marginBottom: '24px' }}>
+                            <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '12px' }}>📍 Filter by Area:</h3>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                <button className={`btn btn-sm ${selectedArea === 'all' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setSelectedArea('all')} >
                                     All Areas ({jobs.length})
                                 </button>
                                 {areas.map(area => (
-                                    <button 
-                                        key={area}
-                                        className={`btn btn-sm ${selectedArea === area ? 'btn-primary' : 'btn-secondary'}`}
-                                        onClick={() => setSelectedArea(area)}
-                                    >
+                                    <button key={area} className={`btn btn-sm ${selectedArea === area ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setSelectedArea(area)} >
                                         {area} ({jobs.filter(j => j.area === area).length})
                                     </button>
                                 ))}
                             </div>
                         </div>
 
+                        {/* Bulk Actions */}
                         {selectedJobs.length > 0 && (
                             <div className="bulk-actions-bar">
                                 <div>
-                                    <strong>{selectedJobs.length}</strong> job(s) selected
+                                    <strong>{selectedJobs.length}</strong> selected
                                 </div>
                                 <button className="btn btn-danger btn-sm" onClick={bulkDeleteJobs}>
                                     🗑️ Delete Selected
@@ -1184,30 +1364,23 @@
                             </div>
                         )}
 
-                        <h2 style={{fontSize: '20px', fontWeight: 700, marginBottom: '24px'}}>
-                            🔨 {selectedArea === 'all' ? 'All Jobs' : `Jobs in ${selectedArea}`}
-                        </h2>
-                        
+                        {/* Jobs Table */}
                         {filteredJobs.length > 0 ? (
                             <table>
                                 <thead>
                                     <tr>
                                         <th className="checkbox-cell">
-                                            <input 
-                                                type="checkbox"
-                                                className="checkbox-input"
-                                                checked={selectedJobs.length === filteredJobs.length && filteredJobs.length > 0}
-                                                onChange={toggleSelectAll}
-                                            />
+                                            <input type="checkbox" className="checkbox-input" checked={selectedJobs.length === filteredJobs.length && filteredJobs.length > 0} onChange={toggleSelectAll} />
                                         </th>
                                         <th>Job #</th>
                                         <th>Client</th>
-                                        <th>Area</th>
                                         <th>Location</th>
-                                        <th>Truck</th>
-                                        <th>Fitter</th>
-                                        <th>Start Date</th>
+                                        <th>Area</th>
                                         <th>Status</th>
+                                        <th>Truck</th>
+                                        <th>Driver</th>
+                                        <th>Value</th>
+                                        <th>Start Date</th>
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
@@ -1215,42 +1388,19 @@
                                     {filteredJobs.map(job => (
                                         <tr key={job.id}>
                                             <td className="checkbox-cell">
-                                                <input 
-                                                    type="checkbox"
-                                                    className="checkbox-input"
-                                                    checked={selectedJobs.includes(job.id)}
-                                                    onChange={() => toggleJobSelection(job.id)}
-                                                />
+                                                <input type="checkbox" className="checkbox-input" checked={selectedJobs.includes(job.id)} onChange={() => toggleJobSelection(job.id)} />
                                             </td>
                                             <td><strong>{job.jobNumber}</strong></td>
                                             <td>{job.clientName}</td>
-                                            <td><span className="area-tag">{job.area}</span></td>
                                             <td>{job.location}</td>
+                                            <td><span className="area-tag" style={{ background: job.area === 'Unassigned' ? 'var(--secondary)' : 'var(--info)' }}>{job.area}</span></td>
+                                            <td>{getStatusBadge(job.status)}</td>
+                                            <td>{job.truck || '-'}</td>
+                                            <td>{job.driver || '-'}</td>
+                                            <td>£{(job.value || 0).toLocaleString()}</td>
+                                            <td>{job.startDate ? new Date(job.startDate).toLocaleDateString('en-GB') : '-'}</td>
                                             <td>
-                                                {job.truck ? (
-                                                    <span className="info-badge">🚚 {job.truck}</span>
-                                                ) : (
-                                                    <span style={{fontSize: '12px', color: 'var(--text-secondary)'}}>-</span>
-                                                )}
-                                            </td>
-                                            <td>
-                                                {job.driver ? (
-                                                    <span className="info-badge">👤 {job.driver}</span>
-                                                ) : (
-                                                    <span style={{fontSize: '12px', color: 'var(--text-secondary)'}}>-</span>
-                                                )}
-                                            </td>
-                                            <td>{job.startDate ? new Date(job.startDate).toLocaleDateString('en-GB') : 'N/A'}</td>
-                                            <td>
-                                                <span className={`badge badge-${
-                                                    job.status === 'active' ? 'success' : 
-                                                    job.status === 'completed' ? 'info' : 'warning'
-                                                }`}>
-                                                    {job.status}
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <div style={{display: 'flex', gap: '8px'}}>
+                                                <div style={{ display: 'flex', gap: '8px' }}>
                                                     <button className="btn btn-sm btn-secondary" onClick={() => openModal('job', job)}>
                                                         ✏️
                                                     </button>
@@ -1264,14 +1414,263 @@
                                 </tbody>
                             </table>
                         ) : (
-                            <p style={{textAlign: 'center', padding: '40px', color: 'var(--text-secondary)'}}>
-                                {selectedArea === 'all' ? 'No jobs yet. Create your first job!' : `No jobs in ${selectedArea} area.`}
+                            <p style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
+                                No jobs match your current filters.
                             </p>
                         )}
                     </div>
                 </>
             );
         }
+
+        // --- NEW/UPDATED VEHICLES VIEW ---
+        function VehiclesView({ vehicles, openModal, loadData }) {
+            const [searchText, setSearchText] = useState('');
+            const [sortField, setSortField] = useState('registration');
+            const [sortDirection, setSortDirection] = useState('asc');
+
+            // NOTE: markActioned is kept for potential external calls (like from the dashboard)
+            const markActioned = async (id, field) => {
+                const vehicle = vehicles.find(v => v.id === id);
+                if (!vehicle) return;
+
+                try {
+                    let updatedVehicle = { ...vehicle };
+
+                    // Maintenance reset logic
+                    if (field === 'maintenanceActioned' && vehicle.maintenanceDue) {
+                        const currentDate = new Date(vehicle.maintenanceDue);
+                        const nextDate = new Date(currentDate);
+                        nextDate.setDate(nextDate.getDate() + 56); // 8 weeks
+
+                        const nextDateStr = nextDate.toISOString().split('T')[0];
+                        updatedVehicle.maintenanceDue = nextDateStr;
+                        updatedVehicle.maintenanceActioned = false;
+
+                        if (confirm(`Maintenance completed! Next maintenance will be due on ${nextDate.toLocaleDateString('en-GB')} (8 weeks from now). Continue?`)) {
+                            await fetch(`${API_URL}/vehicles/${id}`, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(updatedVehicle)
+                            });
+                            loadData();
+                            alert('✅ Maintenance marked complete and next date set!');
+                        }
+                        return;
+                    }
+
+                    // For all other types, just mark actioned
+                    updatedVehicle[field] = true;
+
+                    await fetch(`${API_URL}/vehicles/${id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(updatedVehicle)
+                    });
+                    loadData();
+                } catch (error) {
+                    alert('❌ Error updating vehicle');
+                }
+            };
+
+            const deleteVehicle = async (id) => {
+                if (!confirm('Are you sure you want to delete this vehicle?')) return;
+                try {
+                    await fetch(`${API_URL}/vehicles/${id}`, { method: 'DELETE' });
+                    loadData();
+                    alert('✅ Vehicle deleted successfully');
+                } catch (error) {
+                    alert('❌ Error deleting vehicle');
+                }
+            };
+
+            const sortedVehicles = [...vehicles]
+                .filter(veh => {
+                    const searchLower = searchText.toLowerCase();
+                    // 🔍 Search bar - search by registration, owner, insurance
+                    return (
+                        veh.registration.toLowerCase().includes(searchLower) ||
+                        veh.ownerName.toLowerCase().includes(searchLower) ||
+                        veh.insuranceName.toLowerCase().includes(searchLower)
+                    );
+                })
+                .sort((a, b) => {
+                    const valA = String(a[sortField]).toLowerCase();
+                    const valB = String(b[sortField]).toLowerCase();
+
+                    if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+                    if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+                    return 0;
+                });
+
+            // Component to render the date with color/days logic - UPDATED
+            const VehicleDateCell = ({ dateStr, actioned, actionField }) => {
+                const indicator = getDateIndicatorData(dateStr, actioned);
+
+                if (indicator.status === 'N/A' || dateStr === null) {
+                    return <span className="date-na">N/A</span>;
+                }
+
+                // Explicitly show 'Actioned' status
+                if (indicator.status === 'Actioned') {
+                    return (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--success)' }}>
+                            <span className={`dot ${indicator.dotColor}`}></span>
+                            {new Date(dateStr).toLocaleDateString('en-GB')}
+                            <span style={{ fontSize: '11px', fontWeight: 600, padding: '2px 6px', background: 'rgba(16, 185, 129, 0.1)', borderRadius: '4px' }}>
+                                Actioned
+                            </span>
+                        </div>
+                    );
+                }
+
+                const daysLabel = indicator.daysUntil !== null ?
+                    indicator.daysUntil < 0 ? `${Math.abs(indicator.daysUntil)} days overdue` :
+                        indicator.daysUntil === 0 ? 'Today' :
+                            `${indicator.daysUntil} days` : 'N/A';
+
+                return (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div className={`date-indicator`} style={{ color: indicator.colorClass.replace('date-', '') }}>
+                            <span className={`dot ${indicator.dotColor}`}></span>
+                            {new Date(dateStr).toLocaleDateString('en-GB')}
+                        </div>
+                        {/* Days remaining shown next to each date */}
+                        <span style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-secondary)' }}>
+                            ({daysLabel})
+                        </span>
+                    </div>
+                );
+            };
+
+            return (
+                <>
+                    <div className="page-header">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div>
+                                <h1 style={{ fontSize: '32px', fontWeight: 700, marginBottom: '8px' }}>Vehicles</h1>
+                                <p style={{ color: 'var(--text-secondary)' }}>Track MOT, insurance, tax, tacho (30-day) and maintenance (1-week, 8-week cycle)</p>
+                            </div>
+                            <button className="btn btn-primary" onClick={() => openModal('vehicle')}>
+                                ➕ Add Vehicle
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="section">
+                        <h2 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '24px' }}>🚗 All Vehicles</h2>
+
+                        {/* Vehicle Controls: Search and Sort */}
+                        <div style={{ display: 'flex', gap: '24px', marginBottom: '24px', alignItems: 'center' }}>
+                            <div style={{ flex: 1 }}>
+                                <input
+                                    type="text"
+                                    className="form-input"
+                                    placeholder="🔍 Search by registration, owner, or insurance name..."
+                                    value={searchText}
+                                    onChange={(e) => setSearchText(e.target.value)}
+                                />
+                            </div>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                                {/* Sort Options */}
+                                <select
+                                    className="form-select"
+                                    value={sortField}
+                                    onChange={(e) => setSortField(e.target.value)}
+                                    style={{ width: 'auto' }}
+                                >
+                                    <option value="registration">🔢 Sort by Registration</option>
+                                    <option value="ownerName">Sort by Owner</option>
+                                    <option value="vehicleType">Sort by Type</option>
+                                </select>
+                                <button className="btn btn-secondary btn-sm" onClick={() => setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')}>
+                                    {sortDirection === 'asc' ? '⬆️ Asc' : '⬇️ Desc'}
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Color Guide */}
+                        <div style={{ marginBottom: '24px', padding: '16px', border: '1px solid var(--border)', borderRadius: '8px', backgroundColor: 'var(--bg-primary)' }}>
+                            <h3 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '8px' }}>📖 Date Color Guide:</h3>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', fontSize: '13px' }}>
+                                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div className="dot dot-green"></div> 🟢 Safe (&gt;30 days)</span>
+                                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div className="dot dot-yellow"></div> 🟡 Warning (15-30 days)</span>
+                                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div className="dot dot-orange"></div> 🟠 Orange (8-14 days)</span>
+                                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div className="dot dot-red"></div> 🔴 Red (1-7 days/Today)</span>
+                                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div className="dot dot-darkred"></div> ⚫ Dark Red (Overdue)</span>
+                                <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-secondary)' }}>Actioned</span>
+                            </div>
+                        </div>
+
+
+                        {sortedVehicles.length > 0 ? (
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Registration</th>
+                                        <th>Type</th>
+                                        <th>Owner</th>
+                                        <th>MOT Due</th>
+                                        <th>Tax Due</th>
+                                        <th>Insurance Due</th>
+                                        {vehicles.some(v => v.vehicleType === 'truck') && <th>Tacho Due</th>}
+                                        {vehicles.some(v => v.vehicleType === 'truck') && <th>Maintenance (8wk)</th>}
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {sortedVehicles.map(veh => (
+                                        <tr key={veh.id}>
+                                            <td><strong>{veh.registration}</strong></td>
+                                            <td>{veh.vehicleType === 'truck' ? '🚚 Truck' : '🚗 ' + veh.vehicleType}</td>
+                                            <td>{veh.ownerName}</td>
+                                            <td>
+                                                <VehicleDateCell dateStr={veh.motDue} actioned={veh.motActioned} actionField="motActioned" />
+                                            </td>
+                                            <td>
+                                                <VehicleDateCell dateStr={veh.taxDue} actioned={veh.taxActioned} actionField="taxActioned" />
+                                            </td>
+                                            <td>
+                                                <VehicleDateCell dateStr={veh.insuranceDue} actioned={veh.insuranceActioned} actionField="insuranceActioned" />
+                                            </td>
+                                            {vehicles.some(v => v.vehicleType === 'truck') && (
+                                                <td>
+                                                    {veh.vehicleType === 'truck' ? (
+                                                        <VehicleDateCell dateStr={veh.tachoDue} actioned={veh.tachoActioned} actionField="tachoActioned" />
+                                                    ) : 'N/A'}
+                                                </td>
+                                            )}
+                                            {vehicles.some(v => v.vehicleType === 'truck') && (
+                                                <td>
+                                                    {veh.vehicleType === 'truck' ? (
+                                                        <VehicleDateCell dateStr={veh.maintenanceDue} actioned={veh.maintenanceActioned} actionField="maintenanceActioned" />
+                                                    ) : 'N/A'}
+                                                </td>
+                                            )}
+                                            <td>
+                                                <div style={{ display: 'flex', gap: '8px' }}>
+                                                    <button className="btn btn-sm btn-secondary" onClick={() => openModal('vehicle', veh)}>
+                                                        ✏️
+                                                    </button>
+                                                    <button className="btn btn-sm btn-danger" onClick={() => deleteVehicle(veh.id)}>
+                                                        🗑️
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        ) : (
+                            <p style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
+                                No vehicles added yet. Add your first vehicle!
+                            </p>
+                        )}
+                    </div>
+                </>
+            );
+        }
+        // --- END NEW/UPDATED VEHICLES VIEW ---
 
         function SettingsView({ areas, setAreas, jobs, loadData }) {
             const [newAreaName, setNewAreaName] = useState('');
@@ -1280,15 +1679,16 @@
 
             const addArea = () => {
                 const trimmed = newAreaName.trim();
-                if (!trimmed) {
-                    alert('Please enter an area name');
+                if (!trimmed || areas.includes(trimmed)) {
+                    alert('Invalid or duplicate area name');
                     return;
                 }
-                if (areas.includes(trimmed)) {
-                    alert('This area already exists');
-                    return;
-                }
-                setAreas([...areas, trimmed]);
+                const newAreas = [...areas, trimmed].sort((a, b) => {
+                    if (a === 'Unassigned') return 1;
+                    if (b === 'Unassigned') return -1;
+                    return a.localeCompare(b);
+                });
+                setAreas(newAreas);
                 setNewAreaName('');
                 alert(`✅ Area "${trimmed}" added successfully`);
             };
@@ -1324,7 +1724,6 @@
                         setEditingArea(null);
                         return;
                     }
-
                     try {
                         // Update each job
                         for (const job of jobsToUpdate) {
@@ -1353,73 +1752,56 @@
                     alert('Cannot delete "Unassigned" area');
                     return;
                 }
-
                 const jobCount = jobs.filter(j => j.area === area).length;
-                
                 if (jobCount > 0) {
                     if (!confirm(`This area has ${jobCount} job(s). These jobs will be moved to "Unassigned". Continue?`)) {
                         return;
                     }
-
                     // Move jobs to Unassigned
                     const jobsToUpdate = jobs.filter(j => j.area === area);
-                    Promise.all(jobsToUpdate.map(job => 
-                        fetch(`${API_URL}/jobs/${job.id}`, {
-                            method: 'PUT',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ ...job, area: 'Unassigned' })
-                        })
-                    )).then(() => {
-                        loadData();
+                    Promise.all(jobsToUpdate.map(job => fetch(`${API_URL}/jobs/${job.id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ...job, area: 'Unassigned' })
+                    }))).then(() => {
+                        // Then delete area and reload
                         const newAreas = areas.filter(a => a !== area);
                         setAreas(newAreas);
-                        alert(`✅ Area "${area}" deleted and ${jobCount} job(s) moved to Unassigned`);
+                        loadData();
+                        alert(`✅ Area "${area}" deleted. ${jobCount} jobs moved to "Unassigned".`);
                     }).catch(() => {
-                        alert('❌ Error updating jobs');
+                        alert('❌ Error moving jobs/deleting area');
                     });
                 } else {
-                    if (confirm(`Delete area "${area}"?`)) {
-                        const newAreas = areas.filter(a => a !== area);
-                        setAreas(newAreas);
-                        alert(`✅ Area "${area}" deleted`);
+                    if (!confirm(`Are you sure you want to delete the empty area "${area}"?`)) {
+                        return;
                     }
+                    const newAreas = areas.filter(a => a !== area);
+                    setAreas(newAreas);
+                    alert(`✅ Area "${area}" deleted.`);
                 }
             };
 
             return (
                 <>
                     <div className="page-header">
-                        <div>
-                            <h1 style={{fontSize: '32px', fontWeight: 700, marginBottom: '8px'}}>Settings</h1>
-                            <p style={{color: 'var(--text-secondary)'}}>Manage areas and application settings</p>
-                        </div>
+                        <h1 style={{ fontSize: '32px', fontWeight: 700, marginBottom: '8px' }}>Settings</h1>
+                        <p style={{ color: 'var(--text-secondary)' }}>Manage application settings and custom areas.</p>
                     </div>
 
                     <div className="section">
-                        <h2 style={{fontSize: '20px', fontWeight: 700, marginBottom: '24px'}}>📍 Manage Areas</h2>
-                        
-                        <div style={{marginBottom: '32px'}}>
-                            <h3 style={{fontSize: '16px', fontWeight: 600, marginBottom: '12px'}}>Add New Area</h3>
-                            <div style={{display: 'flex', gap: '12px', alignItems: 'center'}}>
-                                <input 
-                                    type="text" 
-                                    className="form-input" 
-                                    style={{maxWidth: '300px'}}
-                                    placeholder="Enter area name (e.g., Manchester)"
-                                    value={newAreaName}
-                                    onChange={(e) => setNewAreaName(e.target.value)}
-                                    onKeyPress={(e) => e.key === 'Enter' && addArea()}
-                                />
-                                <button className="btn btn-primary" onClick={addArea}>
-                                    ➕ Add Area
-                                </button>
+                        <h2 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '24px' }}>🗺️ Manage Areas</h2>
+
+                        <div style={{ marginBottom: '24px' }}>
+                            <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '12px' }}> Add New Area: </h3>
+                            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                                <input type="text" className="form-input" style={{ maxWidth: '300px' }} placeholder="Enter area name (e.g., Manchester)" value={newAreaName} onChange={(e) => setNewAreaName(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && addArea()} />
+                                <button className="btn btn-primary" onClick={addArea}> ➕ Add Area </button>
                             </div>
                         </div>
 
                         <div>
-                            <h3 style={{fontSize: '16px', fontWeight: 600, marginBottom: '12px'}}>
-                                Existing Areas ({areas.length})
-                            </h3>
+                            <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '12px' }}> Existing Areas ({areas.length}) </h3>
                             <table>
                                 <thead>
                                     <tr>
@@ -1433,14 +1815,7 @@
                                         <tr key={area}>
                                             <td>
                                                 {editingArea === area ? (
-                                                    <input 
-                                                        type="text"
-                                                        className="form-input"
-                                                        value={editingName}
-                                                        onChange={(e) => setEditingName(e.target.value)}
-                                                        onKeyPress={(e) => e.key === 'Enter' && saveRename()}
-                                                        autoFocus
-                                                    />
+                                                    <input type="text" className="form-input" value={editingName} onChange={(e) => setEditingName(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && saveRename()} autoFocus />
                                                 ) : (
                                                     <strong>{area}</strong>
                                                 )}
@@ -1452,28 +1827,16 @@
                                             </td>
                                             <td>
                                                 {editingArea === area ? (
-                                                    <div style={{display: 'flex', gap: '8px'}}>
-                                                        <button className="btn btn-sm btn-success" onClick={saveRename}>
-                                                            ✓ Save
-                                                        </button>
-                                                        <button className="btn btn-sm btn-secondary" onClick={() => setEditingArea(null)}>
-                                                            ✕ Cancel
-                                                        </button>
+                                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                                        <button className="btn btn-sm btn-success" onClick={saveRename}> ✓ Save </button>
+                                                        <button className="btn btn-sm btn-secondary" onClick={() => setEditingArea(null)}> ✕ Cancel </button>
                                                     </div>
                                                 ) : (
-                                                    <div style={{display: 'flex', gap: '8px'}}>
-                                                        <button 
-                                                            className="btn btn-sm btn-secondary" 
-                                                            onClick={() => startRename(area)}
-                                                            disabled={area === 'Unassigned'}
-                                                        >
+                                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                                        <button className="btn btn-sm btn-secondary" onClick={() => startRename(area)} disabled={area === 'Unassigned'} >
                                                             ✏️ Rename
                                                         </button>
-                                                        <button 
-                                                            className="btn btn-sm btn-danger" 
-                                                            onClick={() => deleteArea(area)}
-                                                            disabled={area === 'Unassigned'}
-                                                        >
+                                                        <button className="btn btn-sm btn-danger" onClick={() => deleteArea(area)} disabled={area === 'Unassigned'} >
                                                             🗑️ Delete
                                                         </button>
                                                     </div>
@@ -1485,14 +1848,12 @@
                             </table>
                         </div>
 
-                        <div style={{marginTop: '24px', padding: '16px', background: 'var(--bg-primary)', borderRadius: '12px'}}>
-                            <h4 style={{fontSize: '14px', fontWeight: 600, marginBottom: '8px'}}>ℹ️ About Areas</h4>
-                            <ul style={{fontSize: '13px', color: 'var(--text-secondary)', paddingLeft: '20px'}}>
-                                <li>Areas help organize jobs by location</li>
-                                <li>The "Unassigned" area cannot be deleted or renamed</li>
-                                <li>Renaming an area updates all associated jobs</li>
-                                <li>Deleting an area moves its jobs to "Unassigned"</li>
-                                <li>Areas are stored locally in your browser</li>
+                        <div style={{ marginTop: '24px', padding: '16px', background: 'var(--bg-primary)', borderRadius: '12px' }}>
+                            <h4 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '8px' }}>Important Notes:</h4>
+                            <ul style={{ listStyleType: 'disc', marginLeft: '20px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                                <li>The 'Unassigned' area is created automatically for jobs without a matching postcode prefix or manual assignment and cannot be renamed or deleted.</li>
+                                <li>Renaming an area will automatically update that area for all existing jobs.</li>
+                                <li>Deleting an area will move all its associated jobs to the 'Unassigned' area.</li>
                             </ul>
                         </div>
                     </div>
@@ -1500,168 +1861,51 @@
             );
         }
 
-        function VehiclesView({ vehicles, openModal, loadData }) {
-            const deleteVehicle = async (id) => {
-                if (!confirm('Are you sure you want to delete this vehicle?')) return;
-                try {
-                    await fetch(`${API_URL}/vehicles/${id}`, { method: 'DELETE' });
-                    loadData();
-                    alert('✅ Vehicle deleted successfully');
-                } catch (error) {
-                    alert('❌ Error deleting vehicle');
-                }
+        function Modal({ type, item, closeModal, loadData, jobs, inquiries, invoices, vehicles, areas }) {
+            const [invoiceItems, setInvoiceItems] = useState(item?.items ? JSON.parse(item.items) : [{ description: '', quantity: 1, rate: 0 }]);
+            const addInvoiceItem = () => {
+                setInvoiceItems([...invoiceItems, { description: '', quantity: 1, rate: 0 }]);
             };
+            const removeInvoiceItem = (index) => {
+                setInvoiceItems(invoiceItems.filter((_, i) => i !== index));
+            };
+            const [vehicleType, setVehicleType] = useState(item?.vehicleType || 'car'); // Default vehicle type to car if not provided
+            const [truckTacho, setTruckTacho] = useState(item?.tachoDue || '');
+            const [truckMaintenance, setTruckMaintenance] = useState(item?.maintenanceDue || '');
 
-            const markActioned = async (vehicleId, field) => {
-                const vehicle = vehicles.find(v => v.id === vehicleId);
-                if (!vehicle) return;
+            // --- NEW FUNCTION: Reset Actioned Status ---
+            const resetActioned = async (field) => {
+                if (!item || !item.id) return;
+                
+                if (!confirm(`Are you sure you want to UN-ACTION the status for this item? The reminder will become active again.`)) {
+                    return;
+                }
+
                 try {
-                    await fetch(`${API_URL}/vehicles/${vehicleId}`, {
+                    const updatedVehicle = { ...item, [field]: false };
+                    
+                    const response = await fetch(`${API_URL}/vehicles/${item.id}`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ ...vehicle, [field]: true })
+                        body: JSON.stringify(updatedVehicle)
                     });
+
+                    if (!response.ok) {
+                        throw new Error(`Server error: ${response.statusText}`);
+                    }
+                    
+                    // Close the modal and reload the data to refresh the views
+                    closeModal();
                     loadData();
+                    alert(`✅ Status reset successfully. Reminder is now active.`);
+
                 } catch (error) {
-                    alert('❌ Error updating vehicle');
+                    alert(`❌ Error resetting status: ${error.message}`);
                 }
             };
+            // --- END NEW FUNCTION ---
 
-            return (
-                <>
-                    <div className="page-header">
-                        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-                            <div>
-                                <h1 style={{fontSize: '32px', fontWeight: 700, marginBottom: '8px'}}>Vehicles</h1>
-                                <p style={{color: 'var(--text-secondary)'}}>Track MOT, insurance, tax, tacho (30-day) and maintenance (1-week, 8-week cycle)</p>
-                            </div>
-                            <button className="btn btn-primary" onClick={() => openModal('vehicle')}>
-                                ➕ Add Vehicle
-                            </button>
-                        </div>
-                    </div>
 
-                    <div className="section">
-                        <h2 style={{fontSize: '20px', fontWeight: 700, marginBottom: '24px'}}>🚗 All Vehicles</h2>
-                        {vehicles.length > 0 ? (
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>Registration</th>
-                                        <th>Type</th>
-                                        <th>Owner</th>
-                                        <th>MOT Due</th>
-                                        <th>Tax Due</th>
-                                        <th>Insurance Due</th>
-                                        {vehicles.some(v => v.vehicleType === 'truck') && <th>Tacho Due</th>}
-                                        {vehicles.some(v => v.vehicleType === 'truck') && <th>Maintenance (8wk)</th>}
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {vehicles.map(veh => (
-                                        <tr key={veh.id}>
-                                            <td><strong>{veh.registration}</strong></td>
-                                            <td>{veh.vehicleType === 'truck' ? '🚚 Truck' : '🚗 ' + veh.vehicleType}</td>
-                                            <td>{veh.ownerName}</td>
-                                            <td>
-                                                {veh.motDue ? new Date(veh.motDue).toLocaleDateString('en-GB') : 'N/A'}
-                                                {veh.motDue && !veh.motActioned && (
-                                                    <button 
-                                                        className="btn btn-sm btn-success" 
-                                                        style={{marginLeft: '8px', padding: '2px 8px', fontSize: '11px'}}
-                                                        onClick={() => markActioned(veh.id, 'motActioned')}
-                                                    >
-                                                        ✓
-                                                    </button>
-                                                )}
-                                            </td>
-                                            <td>
-                                                {new Date(veh.taxDue).toLocaleDateString('en-GB')}
-                                                {!veh.taxActioned && (
-                                                    <button 
-                                                        className="btn btn-sm btn-success" 
-                                                        style={{marginLeft: '8px', padding: '2px 8px', fontSize: '11px'}}
-                                                        onClick={() => markActioned(veh.id, 'taxActioned')}
-                                                    >
-                                                        ✓
-                                                    </button>
-                                                )}
-                                            </td>
-                                            <td>
-                                                {new Date(veh.insuranceDue).toLocaleDateString('en-GB')}
-                                                {!veh.insuranceActioned && (
-                                                    <button 
-                                                        className="btn btn-sm btn-success" 
-                                                        style={{marginLeft: '8px', padding: '2px 8px', fontSize: '11px'}}
-                                                        onClick={() => markActioned(veh.id, 'insuranceActioned')}
-                                                    >
-                                                        ✓
-                                                    </button>
-                                                )}
-                                            </td>
-                                            {vehicles.some(v => v.vehicleType === 'truck') && (
-                                                <td>
-                                                    {veh.vehicleType === 'truck' && veh.tachoDue ? (
-                                                        <>
-                                                            {new Date(veh.tachoDue).toLocaleDateString('en-GB')}
-                                                            {!veh.tachoActioned && (
-                                                                <button 
-                                                                    className="btn btn-sm btn-success" 
-                                                                    style={{marginLeft: '8px', padding: '2px 8px', fontSize: '11px'}}
-                                                                    onClick={() => markActioned(veh.id, 'tachoActioned')}
-                                                                >
-                                                                    ✓
-                                                                </button>
-                                                            )}
-                                                        </>
-                                                    ) : '-'}
-                                                </td>
-                                            )}
-                                            {vehicles.some(v => v.vehicleType === 'truck') && (
-                                                <td>
-                                                    {veh.vehicleType === 'truck' && veh.maintenanceDue ? (
-                                                        <>
-                                                            {new Date(veh.maintenanceDue).toLocaleDateString('en-GB')}
-                                                            {!veh.maintenanceActioned && (
-                                                                <button 
-                                                                    className="btn btn-sm btn-success" 
-                                                                    style={{marginLeft: '8px', padding: '2px 8px', fontSize: '11px'}}
-                                                                    onClick={() => markActioned(veh.id, 'maintenanceActioned')}
-                                                                >
-                                                                    ✓
-                                                                </button>
-                                                            )}
-                                                        </>
-                                                    ) : '-'}
-                                                </td>
-                                            )}
-                                            <td>
-                                                <div style={{display: 'flex', gap: '8px'}}>
-                                                    <button className="btn btn-sm btn-secondary" onClick={() => openModal('vehicle', veh)}>
-                                                        ✏️
-                                                    </button>
-                                                    <button className="btn btn-sm btn-danger" onClick={() => deleteVehicle(veh.id)}>
-                                                        🗑️
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        ) : (
-                            <p style={{textAlign: 'center', padding: '40px', color: 'var(--text-secondary)'}}>
-                                No vehicles yet. Add your first vehicle!
-                            </p>
-                        )}
-                    </div>
-                </>
-            );
-        }
-        
-
-        function Modal({ type, item, closeModal, loadData, jobs, inquiries, invoices, vehicles, areas }) {
             const handleSubmit = async (e) => {
                 e.preventDefault();
                 const formData = new FormData(e.target);
@@ -1679,6 +1923,7 @@
                     }
                     const subtotal = items.reduce((sum, item) => sum + (item.quantity * item.rate), 0);
                     const vat = subtotal * 0.20;
+
                     payload = {
                         invoiceNumber: formData.get('invoiceNumber'),
                         clientName: formData.get('clientName'),
@@ -1731,6 +1976,7 @@
                         tachoDue: vehicleType === 'truck' ? formData.get('tachoDue') : null,
                         maintenanceDue: vehicleType === 'truck' ? formData.get('maintenanceDue') : null,
                         insuranceDue: formData.get('insuranceDue'),
+                        // Retain original actioned status unless reset is explicitly performed
                         motActioned: item?.motActioned || false,
                         taxActioned: item?.taxActioned || false,
                         tachoActioned: item?.tachoActioned || false,
@@ -1740,39 +1986,26 @@
                 }
 
                 try {
-                    const endpoint = type === 'invoice' ? 'invoices' : type === 'inquiry' ? 'inquiries' : type === 'job' ? 'jobs' : 'vehicles';
-                    const url = item ? `${API_URL}/${endpoint}/${item.id}` : `${API_URL}/${endpoint}`;
+                    const endpoint = item ? `${API_URL}/${type}s/${item.id}` : `${API_URL}/${type}s`;
                     const method = item ? 'PUT' : 'POST';
-                    
-                    await fetch(url, {
-                        method,
+
+                    const response = await fetch(endpoint, {
+                        method: method,
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
                     });
 
-                    loadData();
+                    if (!response.ok) {
+                        throw new Error(`Server error: ${response.statusText}`);
+                    }
+
                     closeModal();
+                    loadData();
                     alert(`✅ ${type.charAt(0).toUpperCase() + type.slice(1)} saved successfully!`);
                 } catch (error) {
-                    alert(`❌ Error saving ${type}`);
+                    alert(`❌ Error saving ${type}: ${error.message}`);
                 }
             };
-
-            const [invoiceItems, setInvoiceItems] = useState(
-                item && type === 'invoice' && item.items ? 
-                (typeof item.items === 'string' ? JSON.parse(item.items) : item.items) : 
-                [{description: '', quantity: 1, rate: 0}]
-            );
-
-            const addInvoiceItem = () => {
-                setInvoiceItems([...invoiceItems, {description: '', quantity: 1, rate: 0}]);
-            };
-
-            const removeInvoiceItem = (index) => {
-                setInvoiceItems(invoiceItems.filter((_, i) => i !== index));
-            };
-
-            const [vehicleType, setVehicleType] = useState(item?.vehicleType || 'car');
 
             // Get truck vehicles for dropdown
             const truckVehicles = vehicles?.filter(v => v.vehicleType === 'truck') || [];
@@ -1781,10 +2014,10 @@
                 <div className="modal-overlay" onClick={closeModal}>
                     <div className="modal-content" onClick={(e) => e.stopPropagation()}>
                         <div className="modal-header">
-                            <h2 style={{fontSize: '20px', fontWeight: 700}}>
+                            <h2 style={{ fontSize: '20px', fontWeight: 700 }}>
                                 {item ? 'Edit' : 'New'} {type.charAt(0).toUpperCase() + type.slice(1)}
                             </h2>
-                            <button onClick={closeModal} style={{background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer'}}>✕</button>
+                            <button onClick={closeModal} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }}>✕</button>
                         </div>
                         <form onSubmit={handleSubmit}>
                             <div className="modal-body">
@@ -1813,10 +2046,10 @@
                                         <div className="form-group">
                                             <label className="form-label">Items</label>
                                             {invoiceItems.map((item, index) => (
-                                                <div key={index} style={{display: 'flex', gap: '8px', marginBottom: '8px'}}>
+                                                <div key={index} style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
                                                     <input type="text" name="item-description" className="form-input" placeholder="Description" defaultValue={item.description} required />
-                                                    <input type="number" name="item-quantity" className="form-input" placeholder="Qty" defaultValue={item.quantity} style={{width: '80px'}} required />
-                                                    <input type="number" name="item-rate" className="form-input" placeholder="Rate" defaultValue={item.rate} style={{width: '100px'}} step="0.01" required />
+                                                    <input type="number" name="item-quantity" className="form-input" placeholder="Qty" defaultValue={item.quantity} style={{ width: '80px' }} required />
+                                                    <input type="number" name="item-rate" className="form-input" placeholder="Rate" defaultValue={item.rate} style={{ width: '100px' }} step="0.01" required />
                                                     {invoiceItems.length > 1 && (
                                                         <button type="button" className="btn btn-danger btn-sm" onClick={() => removeInvoiceItem(index)}>🗑️</button>
                                                     )}
@@ -1830,11 +2063,10 @@
                                         </div>
                                     </>
                                 )}
-
                                 {type === 'inquiry' && (
                                     <>
                                         <div className="form-group">
-                                            <label className="form-label">Name *</label>
+                                            <label className="form-label">Client Name *</label>
                                             <input type="text" name="name" className="form-input" defaultValue={item?.name} required />
                                         </div>
                                         <div className="form-group">
@@ -1846,25 +2078,25 @@
                                             <input type="email" name="email" className="form-input" defaultValue={item?.email} />
                                         </div>
                                         <div className="form-group">
-                                            <label className="form-label">Location *</label>
+                                            <label className="form-label">Location/Address *</label>
                                             <input type="text" name="location" className="form-input" defaultValue={item?.location} required />
-                                        </div>
-                                        <div className="form-group">
-                                            <label className="form-label">Status</label>
-                                            <select name="status" className="form-select" defaultValue={item?.status || 'new'}>
-                                                <option value="new">New</option>
-                                                <option value="contacted">Contacted</option>
-                                                <option value="quoted">Quoted</option>
-                                                <option value="won">Won</option>
-                                                <option value="lost">Lost</option>
-                                            </select>
                                         </div>
                                         <div className="form-group">
                                             <label className="form-label">Date *</label>
                                             <input type="date" name="date" className="form-input" defaultValue={item?.date || new Date().toISOString().split('T')[0]} required />
                                         </div>
                                         <div className="form-group">
-                                            <label className="form-label">Quote Amount</label>
+                                            <label className="form-label">Status *</label>
+                                            <select name="status" className="form-select" defaultValue={item?.status || 'new'} required>
+                                                <option value="new">New</option>
+                                                <option value="contacted">Contacted</option>
+                                                <option value="quoted">Quoted</option>
+                                                <option value="closed">Closed/Lost</option>
+                                                <option value="converted">Converted to Job</option>
+                                            </select>
+                                        </div>
+                                        <div className="form-group">
+                                            <label className="form-label">Quote Amount (if quoted)</label>
                                             <input type="number" name="quoteAmount" className="form-input" defaultValue={item?.quoteAmount} step="0.01" />
                                         </div>
                                         <div className="form-group">
@@ -1873,7 +2105,6 @@
                                         </div>
                                     </>
                                 )}
-
                                 {type === 'job' && (
                                     <>
                                         <div className="form-group">
@@ -1914,27 +2145,27 @@
                                             ) : (
                                                 <>
                                                     <input type="text" name="truck" className="form-input" defaultValue={item?.truck} placeholder="e.g., Registration or truck name" />
-                                                    <small style={{color: 'var(--warning)', fontSize: '12px', marginTop: '4px', display: 'block'}}>
-                                                        ⚠️ No trucks found in vehicles. Add trucks to vehicle database first.
+                                                    <small style={{ color: 'var(--warning)', fontSize: '12px', marginTop: '4px', display: 'block' }}>
+                                                        ℹ️ Add a vehicle of type 'Truck' in the Vehicles tab to enable dropdown selection.
                                                     </small>
                                                 </>
                                             )}
                                         </div>
                                         <div className="form-group">
-                                            <label className="form-label">👤 Driver</label>
-                                            <input type="text" name="driver" className="form-input" defaultValue={item?.driver} placeholder="e.g., Driver name" />
+                                            <label className="form-label">🧑 Driver</label>
+                                            <input type="text" name="driver" className="form-input" defaultValue={item?.driver} placeholder="e.g., John Smith" />
                                         </div>
                                         <div className="form-group">
-                                            <label className="form-label">Start Date</label>
-                                            <input type="date" name="startDate" className="form-input" defaultValue={item?.startDate} />
+                                            <label className="form-label">Start Date *</label>
+                                            <input type="date" name="startDate" className="form-input" defaultValue={item?.startDate || new Date().toISOString().split('T')[0]} required />
                                         </div>
                                         <div className="form-group">
-                                            <label className="form-label">End Date</label>
+                                            <label className="form-label">Finish Date</label>
                                             <input type="date" name="endDate" className="form-input" defaultValue={item?.endDate} />
                                         </div>
                                         <div className="form-group">
-                                            <label className="form-label">Status</label>
-                                            <select name="status" className="form-select" defaultValue={item?.status || 'pending'}>
+                                            <label className="form-label">Status *</label>
+                                            <select name="status" className="form-select" defaultValue={item?.status || 'pending'} required>
                                                 <option value="pending">Pending</option>
                                                 <option value="active">Active</option>
                                                 <option value="completed">Completed</option>
@@ -1951,7 +2182,6 @@
                                         </div>
                                     </>
                                 )}
-
                                 {type === 'vehicle' && (
                                     <>
                                         <div className="form-group">
@@ -1959,55 +2189,97 @@
                                             <input type="text" name="registration" className="form-input" defaultValue={item?.registration} required />
                                         </div>
                                         <div className="form-group">
-                                            <label className="form-label">Vehicle Type</label>
-                                            <select name="vehicleType" className="form-select" value={vehicleType} onChange={(e) => setVehicleType(e.target.value)}>
-                                                <option value="car">Car</option>
-                                                <option value="van">Van</option>
-                                                <option value="truck">Truck (HGV)</option>
+                                            <label className="form-label">Vehicle Type *</label>
+                                            <select name="vehicleType" className="form-select" value={vehicleType} onChange={(e) => setVehicleType(e.target.value)} required>
+                                                <option value="car">Car/Van</option>
+                                                <option value="truck">Truck</option>
                                             </select>
-                                            <small style={{color: 'var(--text-secondary)', fontSize: '12px', marginTop: '4px', display: 'block'}}>
-                                                Trucks get Tacho (30-day advance) & Maintenance (1-week advance, 8-week cycle)
-                                            </small>
                                         </div>
                                         <div className="form-group">
-                                            <label className="form-label">Owner Name *</label>
-                                            <input type="text" name="ownerName" className="form-input" defaultValue={item?.ownerName} required />
+                                            <label className="form-label">Owner Name</label>
+                                            <input type="text" name="ownerName" className="form-input" defaultValue={item?.ownerName} />
                                         </div>
                                         <div className="form-group">
-                                            <label className="form-label">Insurance Company *</label>
-                                            <input type="text" name="insuranceName" className="form-input" defaultValue={item?.insuranceName} required />
+                                            <label className="form-label">Insurance Company</label>
+                                            <input type="text" name="insuranceName" className="form-input" defaultValue={item?.insuranceName} />
                                         </div>
-                                        <div className="form-group">
-                                            <label className="form-label">MOT Due (30-day advance)</label>
-                                            <input type="date" name="motDue" className="form-input" defaultValue={item?.motDue} />
+
+                                        {/* MOT Due Date Field */}
+                                        <div className="form-group" style={{ display: 'flex', alignItems: 'flex-end', gap: '8px' }}>
+                                            <div style={{ flex: 1 }}>
+                                                <label className="form-label">MOT Due *</label>
+                                                <input type="date" name="motDue" className="form-input" defaultValue={item?.motDue} />
+                                            </div>
+                                            {item?.motActioned && (
+                                                <button type="button" className="btn btn-sm btn-danger" onClick={() => resetActioned('motActioned')} style={{ marginBottom: '1px' }}>
+                                                    ❌ Reset Status
+                                                </button>
+                                            )}
                                         </div>
-                                        <div className="form-group">
-                                            <label className="form-label">Tax Due (14-day advance) *</label>
-                                            <input type="date" name="taxDue" className="form-input" defaultValue={item?.taxDue} required />
+
+                                        {/* Tax Due Date Field */}
+                                        <div className="form-group" style={{ display: 'flex', alignItems: 'flex-end', gap: '8px' }}>
+                                            <div style={{ flex: 1 }}>
+                                                <label className="form-label">Tax Due (14-day advance) *</label>
+                                                <input type="date" name="taxDue" className="form-input" defaultValue={item?.taxDue} required />
+                                            </div>
+                                            {item?.taxActioned && (
+                                                <button type="button" className="btn btn-sm btn-danger" onClick={() => resetActioned('taxActioned')} style={{ marginBottom: '1px' }}>
+                                                    ❌ Reset Status
+                                                </button>
+                                            )}
                                         </div>
+
+                                        {/* Insurance Due Date Field */}
+                                        <div className="form-group" style={{ display: 'flex', alignItems: 'flex-end', gap: '8px' }}>
+                                            <div style={{ flex: 1 }}>
+                                                <label className="form-label">Insurance Due (60-day advance) *</label>
+                                                <input type="date" name="insuranceDue" className="form-input" defaultValue={item?.insuranceDue} required />
+                                            </div>
+                                            {item?.insuranceActioned && (
+                                                <button type="button" className="btn btn-sm btn-danger" onClick={() => resetActioned('insuranceActioned')} style={{ marginBottom: '1px' }}>
+                                                    ❌ Reset Status
+                                                </button>
+                                            )}
+                                        </div>
+
                                         {vehicleType === 'truck' && (
                                             <>
-                                                <div className="form-group">
-                                                    <label className="form-label">Tacho Due (30-day advance)</label>
-                                                    <input type="date" name="tachoDue" className="form-input" defaultValue={item?.tachoDue} />
+                                                {/* Tacho Due Date Field */}
+                                                <div className="form-group" style={{ display: 'flex', alignItems: 'flex-end', gap: '8px' }}>
+                                                    <div style={{ flex: 1 }}>
+                                                        <label className="form-label">Tacho Due (30-day advance)</label>
+                                                        <input type="date" name="tachoDue" className="form-input" defaultValue={item?.tachoDue} />
+                                                    </div>
+                                                    {item?.tachoActioned && (
+                                                        <button type="button" className="btn btn-sm btn-danger" onClick={() => resetActioned('tachoActioned')} style={{ marginBottom: '1px' }}>
+                                                            ❌ Reset Status
+                                                        </button>
+                                                    )}
                                                 </div>
-                                                <div className="form-group">
-                                                    <label className="form-label">Maintenance Due (1-week advance, auto-resets 8 weeks)</label>
-                                                    <input type="date" name="maintenanceDue" className="form-input" defaultValue={item?.maintenanceDue} />
-                                                    <small style={{color: 'var(--text-secondary)', fontSize: '12px', marginTop: '4px', display: 'block'}}>
-                                                        ℹ️ When marked "Done", automatically sets next date 8 weeks ahead
-                                                    </small>
+
+                                                {/* Maintenance Due Date Field */}
+                                                <div className="form-group" style={{ display: 'flex', alignItems: 'flex-end', gap: '8px' }}>
+                                                    <div style={{ flex: 1 }}>
+                                                        <label className="form-label">Maintenance Due (8-week cycle)</label>
+                                                        <input type="date" name="maintenanceDue" className="form-input" defaultValue={item?.maintenanceDue} />
+                                                        <small style={{ color: 'var(--info)', fontSize: '12px', marginTop: '4px', display: 'block' }}>
+                                                            ℹ️ When marked "Done", automatically sets next date 8 weeks ahead
+                                                        </small>
+                                                    </div>
+                                                    {/* NOTE: Maintenance status is NOT reset here as the dashboard 'Done' automatically sets the next date and resets the status */}
+                                                    {item?.maintenanceActioned && (
+                                                        <span style={{ color: 'var(--success)', fontSize: '12px', fontWeight: 600, padding: '10px 0', marginBottom: '1px' }}>
+                                                            Actioned (Next date needed)
+                                                        </span>
+                                                    )}
                                                 </div>
                                             </>
                                         )}
-                                        <div className="form-group">
-                                            <label className="form-label">Insurance Due (60-day advance) *</label>
-                                            <input type="date" name="insuranceDue" className="form-input" defaultValue={item?.insuranceDue} required />
-                                        </div>
                                     </>
                                 )}
                             </div>
-                            <div style={{padding: '24px', borderTop: '1px solid var(--border)', display: 'flex', gap: '12px', justifyContent: 'flex-end'}}>
+                            <div style={{ padding: '24px', borderTop: '1px solid var(--border)', display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
                                 <button type="button" className="btn btn-secondary" onClick={closeModal}>Cancel</button>
                                 <button type="submit" className="btn btn-primary">Save {type.charAt(0).toUpperCase() + type.slice(1)}</button>
                             </div>
@@ -2017,9 +2289,10 @@
             );
         }
 
-        
+
 
         ReactDOM.render(<App />, document.getElementById('root'));
     </script>
 </body>
+
 </html>

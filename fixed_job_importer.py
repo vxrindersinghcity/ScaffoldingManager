@@ -1,16 +1,54 @@
 #!/usr/bin/env python3
 """
-COMPLETE: Import ALL Jobs from ALL CSV files
-Run this from the folder containing your CSV files
+Smart Job Importer - Uses Postcodes to Auto-Assign Areas
+Imports jobs from CSV files and assigns to correct area based on postcode
 """
 
 import sqlite3
 import os
 import csv
+import re
 from datetime import datetime
 from collections import defaultdict
 
 DB_PATH = os.path.join(os.path.expanduser('~'), 'scaffolding_business.db')
+
+# Postcode prefixes for each area
+POSTCODE_AREAS = {
+    'Peterborough': ['PE'],
+    'Leicester': ['LE'],
+    'London': ['N', 'NW', 'W', 'SW', 'SE', 'E', 'EC', 'WC'],
+    'Birmingham': ['B', 'CV', 'DY', 'WS', 'WV'],
+    'Luton': ['LU'],
+}
+
+def extract_postcode(address):
+    """Extract UK postcode from address"""
+    # UK postcode pattern
+    pattern = r'\b([A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2})\b'
+    match = re.search(pattern, address.upper())
+    if match:
+        return match.group(1).replace(' ', '')
+    return None
+
+def get_area_from_postcode(postcode):
+    """Determine area from postcode"""
+    if not postcode:
+        return 'Unassigned'
+    
+    # Extract postcode prefix (letters only)
+    prefix_match = re.match(r'^([A-Z]+)', postcode.upper())
+    if not prefix_match:
+        return 'Unassigned'
+    
+    prefix = prefix_match.group(1)
+    
+    # Check each area
+    for area, prefixes in POSTCODE_AREAS.items():
+        if prefix in prefixes:
+            return area
+    
+    return 'Unassigned'
 
 def parse_date(date_str):
     """Parse various date formats to YYYY-MM-DD"""
@@ -22,7 +60,6 @@ def parse_date(date_str):
     # Try various date formats
     formats = [
         '%m/%d/%Y', '%d/%m/%Y', '%m-%d-%Y', '%d-%m-%Y', '%Y-%m-%d',
-        '%m/%d/%Y', '%d/%m/%Y'
     ]
     
     for fmt in formats:
@@ -76,7 +113,8 @@ def generate_job_number(index, area):
     """Generate unique job number"""
     prefix_map = {
         'Peterborough': 'PB', 'Leicester': 'LC', 'London': 'LD',
-        'Birmingham': 'BH', 'Luton': 'LT', 'Builders': 'BD'
+        'Birmingham': 'BH', 'Luton': 'LT', 'Builders': 'BD',
+        'Unassigned': 'JB'
     }
     prefix = prefix_map.get(area, 'JB')
     return f"{prefix}{str(index + 10000).zfill(6)}"
@@ -106,31 +144,23 @@ def parse_peterborough_leicester_csv():
         with open(csv_path, 'r', encoding='utf-8-sig') as f:
             reader = csv.reader(f)
             rows = list(reader)
-            current_area = 'Peterborough'
             
             for i, row in enumerate(rows):
                 if i < 2 or not row or len(row) < 6:
                     continue
                 
-                # Check for area markers
-                line_text = ' '.join(str(cell).lower() for cell in row)
-                if 'leicester' in line_text and len(row) < 6:
-                    current_area = 'Leicester'
-                    continue
-                elif 'peterborough' in line_text and len(row) < 6:
-                    current_area = 'Peterborough'
-                    continue
-                elif 'london' in line_text and len(row) < 6:
-                    current_area = 'London'
+                # Skip header rows
+                if 'date' in str(row[0]).lower() or 'leicester' in ' '.join(str(cell).lower() for cell in row):
                     continue
                 
                 try:
-                    date_str = str(row[1]).strip() if len(row) > 1 else ''
-                    job_type = str(row[2]).strip() if len(row) > 2 else ''
-                    address = str(row[3]).strip() if len(row) > 3 else ''
-                    price = str(row[4]).strip() if len(row) > 4 else '0'
-                    status = str(row[5]).strip() if len(row) > 5 else ''
-                    fitter = str(row[6]).strip() if len(row) > 6 else ''
+                    # FIX: Corrected column indices to start from row[0] (Date)
+                    date_str = str(row[0]).strip() if len(row) > 0 else ''
+                    job_type = str(row[1]).strip() if len(row) > 1 else ''
+                    address = str(row[2]).strip() if len(row) > 2 else ''
+                    price = str(row[3]).strip() if len(row) > 3 else '0'
+                    status = str(row[4]).strip() if len(row) > 4 else ''
+                    fitter = str(row[5]).strip() if len(row) > 5 else ''
                     
                     if not date_str or not address:
                         continue
@@ -139,6 +169,10 @@ def parse_peterborough_leicester_csv():
                     if not start_date:
                         continue
                     
+                    # Extract postcode and determine area
+                    postcode = extract_postcode(address)
+                    area = get_area_from_postcode(postcode)
+                    
                     try:
                         price_val = float(price.replace(',', '')) if price and price != '0' else 0
                     except:
@@ -146,8 +180,9 @@ def parse_peterborough_leicester_csv():
                     
                     jobs.append({
                         'date': start_date, 'jobType': job_type, 'address': address,
-                        'area': current_area, 'price': price_val, 'status': map_status(status),
-                        'fitter': fitter, 'truck': '', 'driver': '', 'time': None, 'finishDate': None
+                        'area': area, 'price': price_val, 'status': map_status(status),
+                        'fitter': fitter, 'truck': '', 'driver': '', 'time': None, 'finishDate': None,
+                        'postcode': postcode
                     })
                 except:
                     continue
@@ -196,6 +231,10 @@ def parse_luton_csv():
                     if not start_date:
                         continue
                     
+                    # Extract postcode and determine area
+                    postcode = extract_postcode(address)
+                    area = get_area_from_postcode(postcode)
+                    
                     try:
                         price_val = float(price.replace(',', '')) if price and price != '0' else 0
                     except:
@@ -203,8 +242,9 @@ def parse_luton_csv():
                     
                     jobs.append({
                         'date': start_date, 'jobType': job_type, 'address': address,
-                        'area': 'Luton', 'price': price_val, 'status': map_status(status),
-                        'fitter': fitter, 'truck': truck, 'driver': driver, 'time': None, 'finishDate': None
+                        'area': area, 'price': price_val, 'status': map_status(status),
+                        'fitter': fitter, 'truck': truck, 'driver': driver, 'time': None, 'finishDate': None,
+                        'postcode': postcode
                     })
                 except:
                     continue
@@ -253,6 +293,10 @@ def parse_birmingham_csv():
                     if not start_date:
                         continue
                     
+                    # Extract postcode and determine area
+                    postcode = extract_postcode(address)
+                    area = get_area_from_postcode(postcode)
+                    
                     try:
                         price_val = float(price.replace(',', '')) if price and price != '0' else 0
                     except:
@@ -260,8 +304,9 @@ def parse_birmingham_csv():
                     
                     jobs.append({
                         'date': start_date, 'jobType': job_type, 'address': address,
-                        'area': 'Birmingham', 'price': price_val, 'status': map_status(status),
-                        'fitter': fitter, 'truck': truck, 'driver': driver, 'time': None, 'finishDate': None
+                        'area': area, 'price': price_val, 'status': map_status(status),
+                        'fitter': fitter, 'truck': truck, 'driver': driver, 'time': None, 'finishDate': None,
+                        'postcode': postcode
                     })
                 except:
                     continue
@@ -271,7 +316,7 @@ def parse_birmingham_csv():
     return jobs
 
 def parse_builder_jobs_csv():
-    """Parse Builder jobs CSV"""
+    """Parse Builder jobs CSV - Always stays in Builders area"""
     jobs = []
     csv_path = find_csv_file([
         'Khlasa Scaffolding Jobs (Builders_Job__(3)).csv',
@@ -323,12 +368,14 @@ def parse_builder_jobs_csv():
                     except:
                         price_val = 0
                     
+                    # Builders jobs ALWAYS stay in Builders area
                     jobs.append({
                         'date': start_date, 'jobType': job_type, 'address': address,
                         'area': 'Builders', 'price': price_val, 'status': map_status(status),
                         'fitter': fitter, 'truck': truck, 'driver': driver,
                         'time': time_weeks if time_weeks and time_weeks != '0' else None,
-                        'finishDate': end_date, 'builder': builder, 'phone': phone
+                        'finishDate': end_date, 'builder': builder, 'phone': phone,
+                        'postcode': extract_postcode(address)
                     })
                 except:
                     continue
@@ -380,7 +427,7 @@ def import_jobs():
         return
     
     print("=" * 70)
-    print("  COMPLETE JOB IMPORT FROM ALL CSV FILES")
+    print("  SMART JOB IMPORT - POSTCODE-BASED AREA ASSIGNMENT")
     print("=" * 70)
     print()
     print(f"📂 Database: {DB_PATH}")
@@ -417,9 +464,14 @@ def import_jobs():
     for job in all_jobs:
         area_counts[job['area']] += 1
     
-    print("📊 Jobs by area (after deduplication):")
+    print("📊 Jobs by area (after postcode detection):")
     for area, count in sorted(area_counts.items()):
         print(f"   • {area}: {count} jobs")
+    print()
+    
+    # Show postcode detection success rate
+    jobs_with_postcode = sum(1 for job in all_jobs if job.get('postcode'))
+    print(f"✓ Postcode detection: {jobs_with_postcode}/{len(all_jobs)} jobs ({jobs_with_postcode*100//len(all_jobs)}%)")
     print()
     
     # Confirm
@@ -438,7 +490,7 @@ def import_jobs():
     
     imported, updated, skipped = 0, 0, 0
     
-    print("\n📥 Importing jobs...")
+    print("\n🔥 Importing jobs...")
     
     for i, job in enumerate(all_jobs):
         job_key = create_job_key(job)
@@ -456,6 +508,8 @@ def import_jobs():
             notes_parts.append(f"Builder: {job['builder']}")
         if job.get('phone'):
             notes_parts.append(f"Phone: {job['phone']}")
+        if job.get('postcode'):
+            notes_parts.append(f"Postcode: {job['postcode']}")
         notes = ' | '.join(notes_parts) if notes_parts else None
         
         try:
@@ -465,13 +519,14 @@ def import_jobs():
                     UPDATE jobs 
                     SET truck = COALESCE(NULLIF(?, ''), truck),
                         driver = COALESCE(NULLIF(?, ''), driver),
+                        area = ?,
                         endDate = COALESCE(?, endDate),
                         value = CASE WHEN ? > COALESCE(value, 0) THEN ? ELSE value END,
                         notes = COALESCE(?, notes),
                         status = CASE WHEN ? != 'pending' THEN ? ELSE status END,
                         updatedAt = CURRENT_TIMESTAMP
                     WHERE jobNumber = ?
-                ''', (job.get('truck', ''), job.get('driver', ''), job.get('finishDate'),
+                ''', (job.get('truck', ''), job.get('driver', ''), job['area'], job.get('finishDate'),
                       job['price'], job['price'], notes, job['status'], job['status'], job_number))
                 updated += 1
             else:
@@ -506,6 +561,7 @@ def import_jobs():
     if skipped > 0:
         print(f"   • Skipped: {skipped}")
     print()
+    print("📊 Final breakdown by area:")
     for area, count in sorted(area_counts.items()):
         print(f"   • {area}: {count} jobs")
     print("=" * 70)
