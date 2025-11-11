@@ -5,7 +5,7 @@ a = Analysis(
     ['scaffolding_manager.py'],
     pathex=[],
     binaries=[],
-    datas=[('complete_scaffolding_dashboard.html', '.')],
+    datas=[('complete_scaffolding_manager.html', '.')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
