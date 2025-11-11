@@ -632,12 +632,25 @@
                 return reminders.sort((a, b) => a.daysUntil - b.daysUntil);
             }
 
+            function getFutureJobs(jobs) {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                
+                return jobs.filter(job => {
+                    if (!job.startDate) return false;
+                    const startDate = new Date(job.startDate);
+                    startDate.setHours(0, 0, 0, 0);
+                    return startDate > today && job.status !== 'cancelled' && job.status !== 'completed';
+                }).sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+            }
+
             const stats = {
-                totalRevenue: invoices.filter(inv => inv.status === 'paid').reduce((sum, inv) => sum + (inv.total || 0), 0),
+                totalRevenue: invoices.filter(inv => inv.status === 'paid').reduce((sum, inv) => sum + (parseFloat(inv.total) || 0), 0),
                 pendingInvoices: invoices.filter(inv => inv.status === 'pending').length,
                 activeJobs: jobs.filter(job => job.status === 'active').length,
                 newInquiries: inquiries.filter(inq => inq.status === 'new').length,
-                vehicleReminders: getVehicleReminders(vehicles).length
+                vehicleReminders: getVehicleReminders(vehicles).length,
+                futureJobs: getFutureJobs(jobs).length
             };
 
             const formatDateTime = (date) => {
@@ -672,6 +685,7 @@
                                 stats={stats}
                                 invoices={invoices}
                                 vehicles={vehicles}
+                                jobs={jobs}
                                 openModal={openModal}
                                 setActiveView={setActiveView}
                                 loadData={loadData}
@@ -786,8 +800,16 @@
             );
         }
 
-        function Dashboard({ stats, invoices, vehicles, openModal, setActiveView, loadData, currentDateTime, formatDateTime, getVehicleReminders }) {
+        function Dashboard({ stats, invoices, vehicles, jobs, openModal, setActiveView, loadData, currentDateTime, formatDateTime, getVehicleReminders }) {
             const reminders = getVehicleReminders(vehicles);
+            const futureJobs = jobs.filter(job => {
+                if (!job.startDate) return false;
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const startDate = new Date(job.startDate);
+                startDate.setHours(0, 0, 0, 0);
+                return startDate > today && job.status !== 'cancelled' && job.status !== 'completed';
+            }).sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
 
             const markVehicleActioned = async (reminder) => {
                 const vehicle = vehicles.find(v => v.id === reminder.vehicleId);
@@ -850,7 +872,7 @@
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                 <div>
                                     <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>TOTAL REVENUE</div>
-                                    <div style={{ fontSize: '36px', fontWeight: 700 }}>£{stats.totalRevenue.toLocaleString()}</div>
+                                    <div style={{ fontSize: '36px', fontWeight: 700 }}>£{stats.totalRevenue.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                                 </div>
                                 <div style={{ fontSize: '48px' }}>💰</div>
                             </div>
@@ -923,6 +945,60 @@
                                     </div>
                                 ))}
                             </div>
+                        </div>
+                    )}
+
+                    {futureJobs.length > 0 && (
+                        <div className="section">
+                            <h2 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '24px' }}>📅 Upcoming Jobs</h2>
+                            <div>
+                                {futureJobs.slice(0, 5).map((job, idx) => {
+                                    const startDate = new Date(job.startDate);
+                                    const today = new Date();
+                                    today.setHours(0, 0, 0, 0);
+                                    startDate.setHours(0, 0, 0, 0);
+                                    const daysUntil = Math.ceil((startDate - today) / (1000 * 60 * 60 * 24));
+                                    
+                                    return (
+                                        <div key={idx} className="reminder-item" style={{ background: '#f0f9ff', borderLeft: '4px solid #3b82f6' }}>
+                                            <div style={{ flex: 1 }}>
+                                                <div style={{ fontWeight: 600, marginBottom: '4px' }}>
+                                                    {job.jobNumber} - {job.clientName}
+                                                </div>
+                                                <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                                                    Location: {job.location} {job.area && `(${job.area})`}
+                                                    {job.truck && ` • Truck: ${job.truck}`}
+                                                    {job.driver && ` • Driver: ${job.driver}`}
+                                                </div>
+                                            </div>
+                                            <div style={{
+                                                padding: '6px 12px',
+                                                background: 'white',
+                                                borderRadius: '6px',
+                                                fontWeight: 600,
+                                                color: daysUntil <= 3 ? '#dc2626' : daysUntil <= 7 ? 'var(--warning)' : '#3b82f6'
+                                            }}>
+                                                {daysUntil === 0 ? 'Today' :
+                                                    daysUntil === 1 ? 'Tomorrow' :
+                                                        `In ${daysUntil} days`}
+                                            </div>
+                                            <button
+                                                className="btn btn-secondary btn-sm"
+                                                onClick={() => openModal('job', job)}
+                                            >
+                                                📝 View
+                                            </button>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            {futureJobs.length > 5 && (
+                                <div style={{ marginTop: '16px', textAlign: 'center' }}>
+                                    <button className="btn btn-secondary btn-sm" onClick={() => setActiveView('jobs')}>
+                                        View All {futureJobs.length} Upcoming Jobs →
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -1228,7 +1304,21 @@
 
             const searchFiltered = jobs.filter(job => {
                 const searchLower = searchText.toLowerCase();
-                // 🔍 Search bar - searches job number, client, location, area, truck, driver, notes
+                
+                // Extract year and month from dates for searching
+                let startYear = '', startMonth = '', endYear = '', endMonth = '';
+                if (job.startDate) {
+                    const startDate = new Date(job.startDate);
+                    startYear = startDate.getFullYear().toString();
+                    startMonth = startDate.toLocaleDateString('en-GB', { month: 'long' }).toLowerCase();
+                }
+                if (job.endDate) {
+                    const endDate = new Date(job.endDate);
+                    endYear = endDate.getFullYear().toString();
+                    endMonth = endDate.toLocaleDateString('en-GB', { month: 'long' }).toLowerCase();
+                }
+                
+                // 🔍 Search bar - searches job number, client, location, area, truck, driver, notes, year, month
                 return (
                     (job.jobNumber && job.jobNumber.toLowerCase().includes(searchLower)) ||
                     (job.clientName && job.clientName.toLowerCase().includes(searchLower)) ||
@@ -1236,7 +1326,11 @@
                     (job.area && job.area.toLowerCase().includes(searchLower)) ||
                     (job.truck && job.truck.toLowerCase().includes(searchLower)) ||
                     (job.driver && job.driver.toLowerCase().includes(searchLower)) ||
-                    (job.notes && job.notes.toLowerCase().includes(searchLower))
+                    (job.notes && job.notes.toLowerCase().includes(searchLower)) ||
+                    startYear.includes(searchLower) ||
+                    endYear.includes(searchLower) ||
+                    startMonth.includes(searchLower) ||
+                    endMonth.includes(searchLower)
                 );
             });
 
@@ -1344,7 +1438,7 @@
                             <input
                                 type="text"
                                 className="form-input"
-                                placeholder="🔍 Search job number, client, location, area, truck, driver, notes..."
+                                placeholder="🔍 Search job number, client, location, area, truck, driver, year, month, notes..."
                                 value={searchText}
                                 onChange={(e) => setSearchText(e.target.value)}
                                 style={{ marginBottom: '16px' }}
@@ -1997,7 +2091,8 @@
                         });
                     }
                     const subtotal = items.reduce((sum, item) => sum + (item.quantity * item.rate), 0);
-                    const vatApplied = formData.get('vatApplied') === 'on' || (item?.vatApplied !== false);
+                    const vatCheckbox = document.getElementById('vatAppliedCheckbox');
+                    const vatApplied = vatCheckbox ? vatCheckbox.checked : true;
                     const vat = vatApplied ? subtotal * 0.20 : 0;
 
                     payload = {
@@ -2018,9 +2113,11 @@
                     const name = formData.get('name');
                     const phone = formData.get('phone');
                     const location = formData.get('location');
+                    const status = formData.get('status');
+                    const date = formData.get('date');
                     
-                    if (!name || !phone || !location) {
-                        alert('❌ Name, Phone, and Location are required fields!');
+                    if (!name || !phone || !location || !status || !date) {
+                        alert('❌ Name, Phone, Location, Status, and Date are required fields!');
                         return;
                     }
                     
@@ -2029,8 +2126,8 @@
                         phone: phone,
                         email: formData.get('email') || '',
                         location: location,
-                        status: formData.get('status') || 'new',
-                        date: formData.get('date'),
+                        status: status,
+                        date: date,
                         quoteAmount: parseFloat(formData.get('quoteAmount')) || null,
                         notes: formData.get('notes')
                     };
@@ -2072,7 +2169,9 @@
                 }
 
                 try {
-                    const endpoint = item ? `${API_URL}/${type}s/${item.id}` : `${API_URL}/${type}s`;
+                    // Fix pluralization for inquiry -> inquiries
+                    const pluralType = type === 'inquiry' ? 'inquiries' : `${type}s`;
+                    const endpoint = item ? `${API_URL}/${pluralType}/${item.id}` : `${API_URL}/${pluralType}`;
                     const method = item ? 'PUT' : 'POST';
 
                     const response = await fetch(endpoint, {
@@ -2158,15 +2257,6 @@
                                                 </div>
                                             ))}
                                             <button type="button" className="btn btn-secondary btn-sm" onClick={addInvoiceItem}>+ Add Item</button>
-                                        </div>
-                                        <div className="form-group">
-                                            <div className="checkbox-group">
-                                                <input type="checkbox" name="vatApplied" id="vatApplied" 
-                                                    defaultChecked={item?.vatApplied !== false} />
-                                                <label htmlFor="vatApplied" style={{marginLeft: '8px'}}>
-                                                    Apply VAT (20%)
-                                                </label>
-                                            </div>
                                         </div>
                                         {item && (
                                             <div className="form-group">
@@ -2315,15 +2405,6 @@
                                         <div className="form-group">
                                             <label className="form-label">Value (£)</label>
                                             <input type="number" name="value" className="form-input" defaultValue={item?.value} step="0.01" />
-                                        </div>
-                                        <div className="form-group">
-                                            <div className="checkbox-group">
-                                                <input type="checkbox" name="vatApplied" id="vatApplied" 
-                                                    defaultChecked={item?.vatApplied !== false} />
-                                                <label htmlFor="vatApplied" style={{marginLeft: '8px'}}>
-                                                    Apply VAT (20%)
-                                                </label>
-                                            </div>
                                         </div>
                                         {item && (
                                             <div className="form-group">
