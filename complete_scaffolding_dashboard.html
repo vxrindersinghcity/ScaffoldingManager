@@ -538,6 +538,7 @@
             const [inquiries, setInquiries] = useState([]);
             const [vehicles, setVehicles] = useState([]);
             const [jobs, setJobs] = useState([]);
+            const [transactions, setTransactions] = useState([]);
 
             useEffect(() => {
                 loadData();
@@ -554,15 +555,17 @@
 
             const loadData = async () => {
                 try {
-                    const [invRes, inqRes, vehRes, jobRes] = await Promise.all([
+                    const [invRes, inqRes, vehRes, jobRes, transRes] = await Promise.all([
                         fetch(`${API_URL}/invoices`).catch(() => ({ json: async () => [] })),
                         fetch(`${API_URL}/inquiries`).catch(() => ({ json: async () => [] })),
                         fetch(`${API_URL}/vehicles`).catch(() => ({ json: async () => [] })),
-                        fetch(`${API_URL}/jobs`).catch(() => ({ json: async () => [] }))
+                        fetch(`${API_URL}/jobs`).catch(() => ({ json: async () => [] })),
+                        fetch(`${API_URL}/transactions`).catch(() => ({ json: async () => [] }))
                     ]);
                     setInvoices(await invRes.json());
                     setInquiries(await inqRes.json());
                     setVehicles(await vehRes.json());
+                    setTransactions(await transRes.json());
                     const jobsData = await jobRes.json();
                     const processedJobs = jobsData.map(job => ({
                         ...job,
@@ -644,8 +647,20 @@
                 }).sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
             }
 
+            // Financial summary state
+            const [financialSummary, setFinancialSummary] = React.useState({ revenue: 0, expenses: 0, profit: 0, jobs_revenue: 0 });
+            
+            React.useEffect(() => {
+                // Load current year financial summary
+                const currentYear = new Date().getFullYear().toString();
+                fetch(`http://127.0.0.1:5000/api/financial-summary?year=${currentYear}`)
+                    .then(res => res.json())
+                    .then(data => setFinancialSummary(data))
+                    .catch(err => console.error('Error loading financial summary:', err));
+            }, [invoices, jobs]);
+
             const stats = {
-                totalRevenue: invoices.filter(inv => inv.status === 'paid').reduce((sum, inv) => sum + (parseFloat(inv.total) || 0), 0),
+                totalRevenue: financialSummary.revenue || 0,
                 pendingInvoices: invoices.filter(inv => inv.status === 'pending').length,
                 activeJobs: jobs.filter(job => job.status === 'active').length,
                 newInquiries: inquiries.filter(inq => inq.status === 'new').length,
@@ -728,6 +743,25 @@
                                 loadData={loadData}
                             />
                         )}
+                        {activeView === 'money-in' && (
+                            <MoneyInView
+                                transactions={transactions.filter(t => t.transactionType === 'in')}
+                                jobs={jobs}
+                                loadData={loadData}
+                            />
+                        )}
+                        {activeView === 'money-out' && (
+                            <MoneyOutView
+                                transactions={transactions.filter(t => t.transactionType === 'out')}
+                                loadData={loadData}
+                            />
+                        )}
+                        {activeView === 'financial-reports' && (
+                            <FinancialReportsView
+                                transactions={transactions}
+                                jobs={jobs}
+                            />
+                        )}
                         {activeView === 'settings' && (
                             <SettingsView
                                 areas={areas}
@@ -790,6 +824,18 @@
                             <span>🚗</span>
                             <span>Vehicles</span>
                             {stats.vehicleReminders > 0 && <span className="nav-badge">{stats.vehicleReminders}</span>}
+                        </div>
+                        <div className={`nav-item ${activeView === 'money-in' ? 'active' : ''}`} onClick={() => setActiveView('money-in')}>
+                            <span>💰</span>
+                            <span>Money In</span>
+                        </div>
+                        <div className={`nav-item ${activeView === 'money-out' ? 'active' : ''}`} onClick={() => setActiveView('money-out')}>
+                            <span>💸</span>
+                            <span>Money Out</span>
+                        </div>
+                        <div className={`nav-item ${activeView === 'financial-reports' ? 'active' : ''}`} onClick={() => setActiveView('financial-reports')}>
+                            <span>📊</span>
+                            <span>Financial Reports</span>
                         </div>
                         <div className={`nav-item ${activeView === 'settings' ? 'active' : ''}`} onClick={() => setActiveView('settings')}>
                             <span>⚙️</span>
@@ -1018,6 +1064,7 @@
                                         <th>Date</th>
                                         <th>Amount</th>
                                         <th>Status</th>
+                                        <th style={{ width: '80px' }}>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1045,6 +1092,16 @@
                                                 <span className={`badge badge-${inv.status === 'paid' ? 'success' : 'warning'}`}>
                                                     {inv.status}
                                                 </span>
+                                            </td>
+                                            <td>
+                                                <button 
+                                                    className="btn btn-sm btn-primary" 
+                                                    onClick={() => window.open(`${API_URL}/invoices/${inv.id}/preview`, '_blank')}
+                                                    title="View Invoice"
+                                                    style={{ fontSize: '14px' }}
+                                                >
+                                                    👁️
+                                                </button>
                                             </td>
                                         </tr>
                                     ))}
@@ -1166,9 +1223,9 @@
                                                     <button 
                                                         className="btn btn-sm btn-primary" 
                                                         onClick={() => window.open(`${API_URL}/invoices/${inv.id}/preview`, '_blank')}
-                                                        title="Download Excel Invoice"
+                                                        title="View Invoice"
                                                     >
-                                                        📊
+                                                        👁️
                                                     </button>
                                                     <button className="btn btn-sm btn-danger" onClick={() => deleteInvoice(inv.id)}>
                                                         🗑️
@@ -2530,6 +2587,629 @@
         }
 
 
+
+        // ============================================================================
+        // FINANCIAL TRACKING COMPONENTS
+        // ============================================================================
+
+        function MoneyInView({ transactions, jobs, loadData }) {
+            const [showAddForm, setShowAddForm] = React.useState(false);
+            const [formData, setFormData] = React.useState({
+                category: 'Job Payment',
+                amount: '',
+                date: new Date().toISOString().split('T')[0],
+                description: '',
+                reference: '',
+                linkedJobId: '',
+                notes: ''
+            });
+            const [receiptFile, setReceiptFile] = React.useState(null);
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                const formDataToSend = new FormData();
+                formDataToSend.append('transactionType', 'in');
+                Object.keys(formData).forEach(key => {
+                    formDataToSend.append(key, formData[key]);
+                });
+                if (receiptFile) {
+                    formDataToSend.append('receipt', receiptFile);
+                }
+
+                try {
+                    const res = await fetch('http://127.0.0.1:5000/api/transactions', {
+                        method: 'POST',
+                        body: formDataToSend
+                    });
+                    if (res.ok) {
+                        alert('✅ Transaction added successfully!');
+                        setShowAddForm(false);
+                        setFormData({
+                            category: 'Job Payment',
+                            amount: '',
+                            date: new Date().toISOString().split('T')[0],
+                            description: '',
+                            reference: '',
+                            linkedJobId: '',
+                            notes: ''
+                        });
+                        setReceiptFile(null);
+                        loadData();
+                    }
+                } catch (error) {
+                    alert('❌ Error adding transaction');
+                }
+            };
+
+            const handleDelete = async (id, receiptPath) => {
+                if (!confirm('Delete this transaction?')) return;
+                try {
+                    await fetch(`http://127.0.0.1:5000/api/transactions/${id}`, { method: 'DELETE' });
+                    alert('✅ Transaction deleted!');
+                    loadData();
+                } catch (error) {
+                    alert('❌ Error deleting transaction');
+                }
+            };
+
+            const totalRevenue = transactions.reduce((sum, t) => sum + t.amount, 0);
+
+            return (
+                <>
+                    <div className="page-header">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div>
+                                <h1 style={{ fontSize: '32px', fontWeight: 700, marginBottom: '8px' }}>💰 Money In (Revenue)</h1>
+                                <p style={{ color: 'var(--text-secondary)' }}>Track all incoming payments and revenue</p>
+                            </div>
+                            <button className="btn btn-primary" onClick={() => setShowAddForm(!showAddForm)}>
+                                ➕ Add Revenue
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="stats-grid" style={{ marginBottom: '24px', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+                        <div className="stat-card" style={{ '--primary': 'var(--success)' }}>
+                            <div className="stat-label">Total Revenue</div>
+                            <div className="stat-value">£{totalRevenue.toLocaleString('en-GB', { minimumFractionDigits: 2 })}</div>
+                        </div>
+                        <div className="stat-card">
+                            <div className="stat-label">Transactions</div>
+                            <div className="stat-value">{transactions.length}</div>
+                        </div>
+                    </div>
+
+                    {showAddForm && (
+                        <div className="section" style={{ marginBottom: '24px' }}>
+                            <h3 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '16px' }}>Add New Revenue</h3>
+                            <form onSubmit={handleSubmit}>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }}>
+                                    <div className="form-group">
+                                        <label className="form-label">Category *</label>
+                                        <select className="form-select" value={formData.category} onChange={(e) => setFormData({...formData, category: e.target.value})} required>
+                                            <option>Job Payment</option>
+                                            <option>Deposit</option>
+                                            <option>Final Payment</option>
+                                            <option>Milestone Payment</option>
+                                            <option>Other Income</option>
+                                        </select>
+                                    </div>
+                                    <div className="form-group">
+                                        <label className="form-label">Amount (£) *</label>
+                                        <input type="number" className="form-input" step="0.01" value={formData.amount} onChange={(e) => setFormData({...formData, amount: e.target.value})} required />
+                                    </div>
+                                    <div className="form-group">
+                                        <label className="form-label">Date *</label>
+                                        <input type="date" className="form-input" value={formData.date} onChange={(e) => setFormData({...formData, date: e.target.value})} required />
+                                    </div>
+                                    <div className="form-group">
+                                        <label className="form-label">Reference</label>
+                                        <input type="text" className="form-input" placeholder="Invoice #, Check #, etc." value={formData.reference} onChange={(e) => setFormData({...formData, reference: e.target.value})} />
+                                    </div>
+                                    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                                        <label className="form-label">Description *</label>
+                                        <input type="text" className="form-input" placeholder="Payment description" value={formData.description} onChange={(e) => setFormData({...formData, description: e.target.value})} required />
+                                    </div>
+                                    <div className="form-group">
+                                        <label className="form-label">Link to Job</label>
+                                        <select className="form-select" value={formData.linkedJobId} onChange={(e) => setFormData({...formData, linkedJobId: e.target.value})}>
+                                            <option value="">-- No Job --</option>
+                                            {jobs.map(job => <option key={job.id} value={job.id}>{job.jobNumber} - {job.clientName}</option>)}
+                                        </select>
+                                    </div>
+                                    <div className="form-group">
+                                        <label className="form-label">Receipt/Proof</label>
+                                        <input type="file" className="form-input" accept="image/*,application/pdf" onChange={(e) => setReceiptFile(e.target.files[0])} />
+                                    </div>
+                                    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                                        <label className="form-label">Notes</label>
+                                        <textarea className="form-textarea" value={formData.notes} onChange={(e) => setFormData({...formData, notes: e.target.value})}></textarea>
+                                    </div>
+                                </div>
+                                <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
+                                    <button type="submit" className="btn btn-primary">💾 Save Transaction</button>
+                                    <button type="button" className="btn btn-secondary" onClick={() => setShowAddForm(false)}>Cancel</button>
+                                </div>
+                            </form>
+                        </div>
+                    )}
+
+                    <div className="section">
+                        <h3 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '16px' }}>Recent Revenue Transactions</h3>
+                        <div className="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Category</th>
+                                        <th>Description</th>
+                                        <th>Reference</th>
+                                        <th>Amount</th>
+                                        <th>Receipt</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {transactions.length === 0 ? (
+                                        <tr><td colSpan="7" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>No revenue transactions yet</td></tr>
+                                    ) : (
+                                        transactions.map(t => (
+                                            <tr key={t.id}>
+                                                <td>{new Date(t.date).toLocaleDateString('en-GB')}</td>
+                                                <td><span className="badge" style={{ background: 'var(--success)' }}>{t.category}</span></td>
+                                                <td>{t.description}</td>
+                                                <td>{t.reference || '-'}</td>
+                                                <td style={{ fontWeight: 600, color: 'var(--success)' }}>£{t.amount.toLocaleString('en-GB', { minimumFractionDigits: 2 })}</td>
+                                                <td>
+                                                    {t.receiptPath ? (
+                                                        <a href={`http://127.0.0.1:5000/api/transactions/receipts/${t.receiptPath}`} target="_blank" className="btn btn-sm btn-secondary">📄 View</a>
+                                                    ) : '-'}
+                                                </td>
+                                                <td>
+                                                    <button className="btn btn-sm btn-danger" onClick={() => handleDelete(t.id, t.receiptPath)}>🗑️</button>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </>
+            );
+        }
+
+        function MoneyOutView({ transactions, loadData }) {
+            const [showAddForm, setShowAddForm] = React.useState(false);
+            const [formData, setFormData] = React.useState({
+                category: 'Materials',
+                amount: '',
+                date: new Date().toISOString().split('T')[0],
+                description: '',
+                reference: '',
+                notes: ''
+            });
+            const [receiptFile, setReceiptFile] = React.useState(null);
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                const formDataToSend = new FormData();
+                formDataToSend.append('transactionType', 'out');
+                Object.keys(formData).forEach(key => {
+                    formDataToSend.append(key, formData[key]);
+                });
+                if (receiptFile) {
+                    formDataToSend.append('receipt', receiptFile);
+                }
+
+                try {
+                    const res = await fetch('http://127.0.0.1:5000/api/transactions', {
+                        method: 'POST',
+                        body: formDataToSend
+                    });
+                    if (res.ok) {
+                        alert('✅ Expense added successfully!');
+                        setShowAddForm(false);
+                        setFormData({
+                            category: 'Materials',
+                            amount: '',
+                            date: new Date().toISOString().split('T')[0],
+                            description: '',
+                            reference: '',
+                            notes: ''
+                        });
+                        setReceiptFile(null);
+                        loadData();
+                    }
+                } catch (error) {
+                    alert('❌ Error adding expense');
+                }
+            };
+
+            const handleDelete = async (id) => {
+                if (!confirm('Delete this expense?')) return;
+                try {
+                    await fetch(`http://127.0.0.1:5000/api/transactions/${id}`, { method: 'DELETE' });
+                    alert('✅ Expense deleted!');
+                    loadData();
+                } catch (error) {
+                    alert('❌ Error deleting expense');
+                }
+            };
+
+            const totalExpenses = transactions.reduce((sum, t) => sum + t.amount, 0);
+            const categoryBreakdown = transactions.reduce((acc, t) => {
+                acc[t.category] = (acc[t.category] || 0) + t.amount;
+                return acc;
+            }, {});
+
+            return (
+                <>
+                    <div className="page-header">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div>
+                                <h1 style={{ fontSize: '32px', fontWeight: 700, marginBottom: '8px' }}>💸 Money Out (Expenses)</h1>
+                                <p style={{ color: 'var(--text-secondary)' }}>Track all outgoing payments and expenses</p>
+                            </div>
+                            <button className="btn btn-primary" onClick={() => setShowAddForm(!showAddForm)}>
+                                ➕ Add Expense
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="stats-grid" style={{ marginBottom: '24px' }}>
+                        <div className="stat-card" style={{ '--primary': 'var(--danger)' }}>
+                            <div className="stat-label">Total Expenses</div>
+                            <div className="stat-value">£{totalExpenses.toLocaleString('en-GB', { minimumFractionDigits: 2 })}</div>
+                        </div>
+                        <div className="stat-card">
+                            <div className="stat-label">Transactions</div>
+                            <div className="stat-value">{transactions.length}</div>
+                        </div>
+                        <div className="stat-card">
+                            <div className="stat-label">Categories</div>
+                            <div className="stat-value">{Object.keys(categoryBreakdown).length}</div>
+                        </div>
+                    </div>
+
+                    {Object.keys(categoryBreakdown).length > 0 && (
+                        <div className="section" style={{ marginBottom: '24px' }}>
+                            <h3 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '16px' }}>Expense Breakdown by Category</h3>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+                                {Object.entries(categoryBreakdown).sort((a, b) => b[1] - a[1]).map(([cat, amount]) => (
+                                    <div key={cat} style={{ padding: '12px', background: 'var(--bg-primary)', borderRadius: '8px', borderLeft: '3px solid var(--danger)' }}>
+                                        <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '4px' }}>{cat}</div>
+                                        <div style={{ fontSize: '20px', fontWeight: 600 }}>£{amount.toLocaleString('en-GB', { minimumFractionDigits: 2 })}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {showAddForm && (
+                        <div className="section" style={{ marginBottom: '24px' }}>
+                            <h3 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '16px' }}>Add New Expense</h3>
+                            <form onSubmit={handleSubmit}>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }}>
+                                    <div className="form-group">
+                                        <label className="form-label">Category *</label>
+                                        <select className="form-select" value={formData.category} onChange={(e) => setFormData({...formData, category: e.target.value})} required>
+                                            <option>Materials</option>
+                                            <option>Labor</option>
+                                            <option>Equipment Rental</option>
+                                            <option>Fuel</option>
+                                            <option>Vehicle Maintenance</option>
+                                            <option>Insurance</option>
+                                            <option>Permits & Licenses</option>
+                                            <option>Office Expenses</option>
+                                            <option>Utilities</option>
+                                            <option>Subcontractors</option>
+                                            <option>Marketing</option>
+                                            <option>Other</option>
+                                        </select>
+                                    </div>
+                                    <div className="form-group">
+                                        <label className="form-label">Amount (£) *</label>
+                                        <input type="number" className="form-input" step="0.01" value={formData.amount} onChange={(e) => setFormData({...formData, amount: e.target.value})} required />
+                                    </div>
+                                    <div className="form-group">
+                                        <label className="form-label">Date *</label>
+                                        <input type="date" className="form-input" value={formData.date} onChange={(e) => setFormData({...formData, date: e.target.value})} required />
+                                    </div>
+                                    <div className="form-group">
+                                        <label className="form-label">Reference</label>
+                                        <input type="text" className="form-input" placeholder="Receipt #, Invoice #, etc." value={formData.reference} onChange={(e) => setFormData({...formData, reference: e.target.value})} />
+                                    </div>
+                                    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                                        <label className="form-label">Description *</label>
+                                        <input type="text" className="form-input" placeholder="What was this expense for?" value={formData.description} onChange={(e) => setFormData({...formData, description: e.target.value})} required />
+                                    </div>
+                                    <div className="form-group">
+                                        <label className="form-label">Receipt/Proof *</label>
+                                        <input type="file" className="form-input" accept="image/*,application/pdf" onChange={(e) => setReceiptFile(e.target.files[0])} required />
+                                        <small style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>Upload receipt image or PDF</small>
+                                    </div>
+                                    <div className="form-group">
+                                        <label className="form-label">Notes</label>
+                                        <textarea className="form-textarea" value={formData.notes} onChange={(e) => setFormData({...formData, notes: e.target.value})}></textarea>
+                                    </div>
+                                </div>
+                                <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
+                                    <button type="submit" className="btn btn-primary">💾 Save Expense</button>
+                                    <button type="button" className="btn btn-secondary" onClick={() => setShowAddForm(false)}>Cancel</button>
+                                </div>
+                            </form>
+                        </div>
+                    )}
+
+                    <div className="section">
+                        <h3 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '16px' }}>Recent Expenses</h3>
+                        <div className="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Category</th>
+                                        <th>Description</th>
+                                        <th>Reference</th>
+                                        <th>Amount</th>
+                                        <th>Receipt</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {transactions.length === 0 ? (
+                                        <tr><td colSpan="7" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>No expenses yet</td></tr>
+                                    ) : (
+                                        transactions.map(t => (
+                                            <tr key={t.id}>
+                                                <td>{new Date(t.date).toLocaleDateString('en-GB')}</td>
+                                                <td><span className="badge" style={{ background: 'var(--danger)' }}>{t.category}</span></td>
+                                                <td>{t.description}</td>
+                                                <td>{t.reference || '-'}</td>
+                                                <td style={{ fontWeight: 600, color: 'var(--danger)' }}>£{t.amount.toLocaleString('en-GB', { minimumFractionDigits: 2 })}</td>
+                                                <td>
+                                                    {t.receiptPath ? (
+                                                        <a href={`http://127.0.0.1:5000/api/transactions/receipts/${t.receiptPath}`} target="_blank" className="btn btn-sm btn-secondary">📄 View</a>
+                                                    ) : '-'}
+                                                </td>
+                                                <td>
+                                                    <button className="btn btn-sm btn-danger" onClick={() => handleDelete(t.id)}>🗑️</button>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </>
+            );
+        }
+
+        function FinancialReportsView({ transactions, jobs }) {
+            const [reportType, setReportType] = React.useState('custom');
+            const [startDate, setStartDate] = React.useState(new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0]);
+            const [endDate, setEndDate] = React.useState(new Date().toISOString().split('T')[0]);
+            const [reportData, setReportData] = React.useState(null);
+            const [yearSummaries, setYearSummaries] = React.useState([]);
+
+            React.useEffect(() => {
+                // Load year summaries
+                const years = ['2024', '2025', '2026'];
+                Promise.all(years.map(year => 
+                    fetch(`http://127.0.0.1:5000/api/financial-summary?year=${year}`).then(r => r.json())
+                )).then(results => {
+                    setYearSummaries(years.map((year, i) => ({ year, ...results[i] })));
+                });
+            }, [transactions, jobs]);
+
+            const generateReport = async () => {
+                try {
+                    const res = await fetch(`http://127.0.0.1:5000/api/financial-report?start_date=${startDate}&end_date=${endDate}`);
+                    const data = await res.json();
+                    setReportData(data);
+                } catch (error) {
+                    alert('❌ Error generating report');
+                }
+            };
+
+            const handleQuickDate = (months) => {
+                const end = new Date();
+                const start = new Date();
+                start.setMonth(start.getMonth() - months);
+                setStartDate(start.toISOString().split('T')[0]);
+                setEndDate(end.toISOString().split('T')[0]);
+            };
+
+            const printReport = () => {
+                window.print();
+            };
+
+            return (
+                <>
+                    <div className="page-header no-print">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div>
+                                <h1 style={{ fontSize: '32px', fontWeight: 700, marginBottom: '8px' }}>📊 Financial Reports</h1>
+                                <p style={{ color: 'var(--text-secondary)' }}>Generate comprehensive financial reports</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="section no-print" style={{ marginBottom: '24px' }}>
+                        <h3 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '16px' }}>Generate Report</h3>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px', marginBottom: '16px' }}>
+                            <button className="btn btn-secondary" onClick={() => handleQuickDate(1)}>Last Month</button>
+                            <button className="btn btn-secondary" onClick={() => handleQuickDate(3)}>Last 3 Months</button>
+                            <button className="btn btn-secondary" onClick={() => handleQuickDate(6)}>Last 6 Months</button>
+                            <button className="btn btn-secondary" onClick={() => handleQuickDate(12)}>Last Year</button>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '12px', marginBottom: '16px' }}>
+                            <div className="form-group">
+                                <label className="form-label">Start Date</label>
+                                <input type="date" className="form-input" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label">End Date</label>
+                                <input type="date" className="form-input" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                                <button className="btn btn-primary" onClick={generateReport}>Generate Report</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {yearSummaries.length > 0 && (
+                        <div className="section" style={{ marginBottom: '24px' }}>
+                            <h3 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '16px' }}>📅 Year-by-Year Summary</h3>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px' }}>
+                                {yearSummaries.map(y => (
+                                    <div key={y.year} style={{ padding: '20px', background: 'var(--bg-primary)', borderRadius: '12px', border: '2px solid var(--border)' }}>
+                                        <h4 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '16px' }}>{y.year}</h4>
+                                        <div style={{ fontSize: '14px', marginBottom: '8px' }}>
+                                            <span style={{ color: 'var(--text-secondary)' }}>Revenue:</span>
+                                            <span style={{ float: 'right', fontWeight: 600, color: 'var(--success)' }}>£{(y.revenue || 0).toLocaleString('en-GB', { minimumFractionDigits: 2 })}</span>
+                                        </div>
+                                        <div style={{ fontSize: '14px', marginBottom: '8px' }}>
+                                            <span style={{ color: 'var(--text-secondary)' }}>Expenses:</span>
+                                            <span style={{ float: 'right', fontWeight: 600, color: 'var(--danger)' }}>£{(y.expenses || 0).toLocaleString('en-GB', { minimumFractionDigits: 2 })}</span>
+                                        </div>
+                                        <div style={{ fontSize: '16px', paddingTop: '8px', borderTop: '2px solid var(--border)', marginTop: '8px' }}>
+                                            <span style={{ fontWeight: 700 }}>Profit:</span>
+                                            <span style={{ float: 'right', fontWeight: 700, color: (y.profit || 0) >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+                                                £{(y.profit || 0).toLocaleString('en-GB', { minimumFractionDigits: 2 })}
+                                            </span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {reportData && (
+                        <div className="section print-section">
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                                <h3 style={{ fontSize: '20px', fontWeight: 700 }}>
+                                    Financial Report: {new Date(reportData.period.start).toLocaleDateString('en-GB')} - {new Date(reportData.period.end).toLocaleDateString('en-GB')}
+                                </h3>
+                                <button className="btn btn-primary no-print" onClick={printReport}>🖨️ Print Report</button>
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '32px' }}>
+                                <div style={{ padding: '16px', background: 'var(--success)', color: 'white', borderRadius: '8px' }}>
+                                    <div style={{ fontSize: '13px', opacity: 0.9, marginBottom: '4px' }}>Total Revenue</div>
+                                    <div style={{ fontSize: '24px', fontWeight: 700 }}>£{reportData.totals.revenue.toLocaleString('en-GB', { minimumFractionDigits: 2 })}</div>
+                                </div>
+                                <div style={{ padding: '16px', background: 'var(--danger)', color: 'white', borderRadius: '8px' }}>
+                                    <div style={{ fontSize: '13px', opacity: 0.9, marginBottom: '4px' }}>Total Expenses</div>
+                                    <div style={{ fontSize: '24px', fontWeight: 700 }}>£{reportData.totals.expenses.toLocaleString('en-GB', { minimumFractionDigits: 2 })}</div>
+                                </div>
+                                <div style={{ padding: '16px', background: reportData.totals.profit >= 0 ? 'var(--success)' : 'var(--danger)', color: 'white', borderRadius: '8px' }}>
+                                    <div style={{ fontSize: '13px', opacity: 0.9, marginBottom: '4px' }}>Net Profit</div>
+                                    <div style={{ fontSize: '24px', fontWeight: 700 }}>£{reportData.totals.profit.toLocaleString('en-GB', { minimumFractionDigits: 2 })}</div>
+                                </div>
+                                <div style={{ padding: '16px', background: 'var(--primary)', color: 'white', borderRadius: '8px' }}>
+                                    <div style={{ fontSize: '13px', opacity: 0.9, marginBottom: '4px' }}>Profit Margin</div>
+                                    <div style={{ fontSize: '24px', fontWeight: 700 }}>
+                                        {reportData.totals.revenue > 0 ? ((reportData.totals.profit / reportData.totals.revenue) * 100).toFixed(1) : 0}%
+                                    </div>
+                                </div>
+                            </div>
+
+                            {reportData.completed_jobs.length > 0 && (
+                                <div style={{ marginBottom: '32px' }}>
+                                    <h4 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '12px' }}>Completed Jobs ({reportData.completed_jobs.length})</h4>
+                                    <table style={{ fontSize: '13px' }}>
+                                        <thead>
+                                            <tr>
+                                                <th>Job #</th>
+                                                <th>Client</th>
+                                                <th>Location</th>
+                                                <th>Start Date</th>
+                                                <th>Value</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {reportData.completed_jobs.map(job => (
+                                                <tr key={job.id}>
+                                                    <td>{job.jobNumber}</td>
+                                                    <td>{job.clientName}</td>
+                                                    <td>{job.location}</td>
+                                                    <td>{new Date(job.startDate).toLocaleDateString('en-GB')}</td>
+                                                    <td style={{ fontWeight: 600 }}>£{(job.value || 0).toLocaleString('en-GB', { minimumFractionDigits: 2 })}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+
+                            {reportData.transactions.filter(t => t.transactionType === 'in').length > 0 && (
+                                <div style={{ marginBottom: '32px' }}>
+                                    <h4 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '12px' }}>Revenue Transactions ({reportData.transactions.filter(t => t.transactionType === 'in').length})</h4>
+                                    <table style={{ fontSize: '13px' }}>
+                                        <thead>
+                                            <tr>
+                                                <th>Date</th>
+                                                <th>Category</th>
+                                                <th>Description</th>
+                                                <th>Amount</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {reportData.transactions.filter(t => t.transactionType === 'in').map(t => (
+                                                <tr key={t.id}>
+                                                    <td>{new Date(t.date).toLocaleDateString('en-GB')}</td>
+                                                    <td>{t.category}</td>
+                                                    <td>{t.description}</td>
+                                                    <td style={{ fontWeight: 600, color: 'var(--success)' }}>£{t.amount.toLocaleString('en-GB', { minimumFractionDigits: 2 })}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+
+                            {reportData.transactions.filter(t => t.transactionType === 'out').length > 0 && (
+                                <div>
+                                    <h4 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '12px' }}>Expense Transactions ({reportData.transactions.filter(t => t.transactionType === 'out').length})</h4>
+                                    <table style={{ fontSize: '13px' }}>
+                                        <thead>
+                                            <tr>
+                                                <th>Date</th>
+                                                <th>Category</th>
+                                                <th>Description</th>
+                                                <th>Amount</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {reportData.transactions.filter(t => t.transactionType === 'out').map(t => (
+                                                <tr key={t.id}>
+                                                    <td>{new Date(t.date).toLocaleDateString('en-GB')}</td>
+                                                    <td>{t.category}</td>
+                                                    <td>{t.description}</td>
+                                                    <td style={{ fontWeight: 600, color: 'var(--danger)' }}>£{t.amount.toLocaleString('en-GB', { minimumFractionDigits: 2 })}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    <style>{`
+                        @media print {
+                            .no-print { display: none !important; }
+                            .print-section { page-break-inside: avoid; }
+                            body { background: white; }
+                            .section { box-shadow: none; }
+                        }
+                    `}</style>
+                </>
+            );
+        }
 
         ReactDOM.render(<App />, document.getElementById('root'));
     </script>
